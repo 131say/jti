@@ -7,10 +7,12 @@ import io
 from pathlib import Path
 from typing import Any
 
+from worker.core.bearings import bearing_catalog_label, purchased_bearing_price_usd
 from worker.core.fasteners import (
     fastener_catalog_label,
     purchased_fastener_price_usd,
 )
+from worker.core.gears import gear_catalog_label
 from worker.core.materials import MATERIAL_PRESETS
 from worker.core.mjcf_gen import _part_mass_kg, _prepare_parts
 from worker.generator import build_part_solid
@@ -76,6 +78,19 @@ def build_bom_from_blueprint(
             fp = part.get("parameters") or {}
             catalog_label = fastener_catalog_label(fp)
             cost_usd = purchased_fastener_price_usd(fp)
+        elif part.get("base_shape") == "bearing":
+            item_type = "purchased"
+            fp = part.get("parameters") or {}
+            catalog_label = bearing_catalog_label(fp)
+            cost_usd = purchased_bearing_price_usd(fp)
+        elif part.get("base_shape") == "gear":
+            item_type = "manufactured"
+            fp = part.get("parameters") or {}
+            catalog_label = gear_catalog_label(fp)
+            if isinstance(mat_key, str) and mat_key.strip():
+                preset = MATERIAL_PRESETS.get(mat_key.strip())
+                if preset is not None:
+                    cost_usd = mass_kg * float(preset.cost_per_kg_usd)
         elif isinstance(mat_key, str) and mat_key.strip():
             preset = MATERIAL_PRESETS.get(mat_key.strip())
             if preset is not None:

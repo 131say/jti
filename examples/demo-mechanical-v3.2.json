@@ -1,0 +1,92 @@
+{
+  "metadata": {
+    "project_id": "demo_mechanical_v32",
+    "schema_version": "3.2"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "housing",
+        "base_shape": "box",
+        "parameters": {
+          "length": 40,
+          "width": 40,
+          "height": 12
+        },
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 22.2,
+            "depth": "through_all",
+            "position": [0, 0, 6],
+            "direction": [0, 0, 1]
+          }
+        ],
+        "material": "aluminum_6061"
+      },
+      {
+        "part_id": "brg_608",
+        "base_shape": "bearing",
+        "parameters": {
+          "series": "608zz"
+        },
+        "operations": [],
+        "material": "steel"
+      },
+      {
+        "part_id": "gear_20",
+        "base_shape": "gear",
+        "parameters": {
+          "module": 2.0,
+          "teeth": 20,
+          "thickness": 8.0,
+          "bore_diameter": 8.0,
+          "high_lod": false
+        },
+        "operations": [],
+        "material": "steel"
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "m_al",
+        "density": 2700,
+        "friction": 0.35
+      },
+      {
+        "mat_id": "m_st",
+        "density": 7850,
+        "friction": 0.4
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "housing",
+        "mat_id": "m_al"
+      },
+      {
+        "part_id": "brg_608",
+        "mat_id": "m_st"
+      },
+      {
+        "part_id": "gear_20",
+        "mat_id": "m_st"
+      }
+    ],
+    "joints": []
+  },
+  "assembly_mates": [
+    {
+      "type": "snap_to_operation",
+      "source_part": "brg_608",
+      "target_part": "housing",
+      "target_operation_index": 0
+    }
+  ]
+}

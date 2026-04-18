@@ -98,6 +98,10 @@ def _diag_inertia_kg_m2(part: dict[str, Any], mass_kg: float, scale_m_per_unit: 
         return (ixx, ixx, izz)
     if kind == "fastener":
         return (mass_kg * 1e-4, mass_kg * 1e-4, mass_kg * 1e-4)
+    if kind == "bearing":
+        return (mass_kg * 1e-4, mass_kg * 1e-4, mass_kg * 1e-4)
+    if kind == "gear":
+        return (mass_kg * 1e-4, mass_kg * 1e-4, mass_kg * 1e-4)
     return (mass_kg * 1e-4, mass_kg * 1e-4, mass_kg * 1e-4)
 
 

@@ -152,6 +152,22 @@ class RawFastenerParams(BaseModel):
     fit: Literal["clearance", "tight"] = "clearance"
 
 
+class RawBearingParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    series: str = Field(min_length=1)
+
+
+class RawGearParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    module: NumExpr
+    teeth: NumExpr
+    thickness: NumExpr
+    bore_diameter: NumExpr
+    high_lod: bool = False
+
+
 class RawGeometryPartCylinder(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
@@ -206,6 +222,24 @@ class RawGeometryPartFastener(RawGeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
+class RawGeometryPartBearing(RawGeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["bearing"]
+    parameters: RawBearingParams
+    operations: list[RawPartOperation]
+
+
+class RawGeometryPartGear(RawGeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["gear"]
+    parameters: RawGearParams
+    operations: list[RawPartOperation]
+
+
 class RawGeometryPartCustomProfile(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
@@ -230,6 +264,8 @@ RawGeometryPart = Annotated[
         RawGeometryPartExtrudedProfile,
         RawGeometryPartRevolvedProfile,
         RawGeometryPartFastener,
+        RawGeometryPartBearing,
+        RawGeometryPartGear,
         RawGeometryPartCustomProfile,
     ],
     Field(discriminator="base_shape"),

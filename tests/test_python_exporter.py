@@ -41,6 +41,62 @@ class TestPythonExporter(unittest.TestCase):
         self.assertIn(".revolve(", src)
         self.assertIn("pulley_wheel", src)
 
+    def test_bearing_and_gear_preview_in_script(self) -> None:
+        payload = {
+            "geometry": {
+                "parts": [
+                    {
+                        "part_id": "b1",
+                        "base_shape": "bearing",
+                        "parameters": {"series": "608zz"},
+                        "operations": [],
+                    },
+                    {
+                        "part_id": "g1",
+                        "base_shape": "gear",
+                        "parameters": {
+                            "module": 2.0,
+                            "teeth": 20,
+                            "thickness": 10.0,
+                            "bore_diameter": 8.0,
+                            "high_lod": False,
+                        },
+                        "operations": [],
+                    },
+                ]
+            }
+        }
+        src = generate_python_script(payload)
+        self.assertIn("make_bearing_ring", src)
+        self.assertIn("'608zz'", src)
+        self.assertIn("make_gear_preview", src)
+        self.assertIn("b1 = make_bearing_ring", src)
+        self.assertIn("g1 = make_gear_preview", src)
+
+    def test_gear_high_lod_not_added(self) -> None:
+        payload = {
+            "geometry": {
+                "parts": [
+                    {
+                        "part_id": "g_hi",
+                        "base_shape": "gear",
+                        "parameters": {
+                            "module": 2.0,
+                            "teeth": 20,
+                            "thickness": 10.0,
+                            "bore_diameter": 8.0,
+                            "high_lod": True,
+                        },
+                        "operations": [],
+                    }
+                ]
+            }
+        }
+        src = generate_python_script(payload)
+        self.assertIn("high_lod=true", src)
+        self.assertIn("g_hi = None", src)
+        self.assertIn("was not added", src)
+
 
 if __name__ == "__main__":
     unittest.main()

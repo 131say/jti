@@ -1,4 +1,4 @@
-"""Pydantic v2 модели Blueprint v1.0–v3.0 (v3.0: опционально assembly_mates)."""
+"""Pydantic v2 модели Blueprint v1.0–v3.2 (v3.2: bearing, gear)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,9 @@ class BlueprintMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     project_id: str = Field(min_length=1)
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0"]
+    schema_version: Literal[
+        "1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2"
+    ]
 
 
 class GlobalSettings(BaseModel):
@@ -253,6 +255,50 @@ class GeometryPartFastener(GeometryPartMaterialFields):
     operations: list[PartOperation]
 
 
+class BearingParams(BaseModel):
+    """Каталожный подшипник (упрощённое кольцо по OD/ID/ширине)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    series: str = Field(
+        min_length=1,
+        description="Серия из каталога (608zz, 6200, 6201, …).",
+    )
+
+
+class GeometryPartBearing(GeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["bearing"]
+    parameters: BearingParams
+    operations: list[PartOperation]
+
+
+class GearParams(BaseModel):
+    """Шестерня: preview (high_lod=false) — многоугольник по Da; high_lod=true — задел на эвольвенту."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    module: float = Field(gt=0, description="Модуль m (мм).")
+    teeth: int = Field(ge=4, le=500, description="Число зубьев z.")
+    thickness: float = Field(gt=0, description="Ширина венца (мм), экструзия +Z.")
+    bore_diameter: float = Field(gt=0, description="Посадочное отверстие под вал (мм).")
+    high_lod: bool = Field(
+        default=False,
+        description="false: упрощённая геометрия (быстро); true: будущий эвольвентный режим.",
+    )
+
+
+class GeometryPartGear(GeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["gear"]
+    parameters: GearParams
+    operations: list[PartOperation]
+
+
 class GeometryPartCustomProfile(GeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
@@ -277,6 +323,8 @@ GeometryPart = Annotated[
         GeometryPartExtrudedProfile,
         GeometryPartRevolvedProfile,
         GeometryPartFastener,
+        GeometryPartBearing,
+        GeometryPartGear,
         GeometryPartCustomProfile,
     ],
     Field(discriminator="base_shape"),

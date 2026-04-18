@@ -71,6 +71,48 @@ def make_washer_flat(size: str) -> cq.Shape:
     return w.val()
 '''
 
+# Вставляется в eject build_model.py (подшипники / упрощённые шестерни).
+_EJECTED_MECHANICAL_HELPERS = '''
+def _bearing_row(series: str) -> tuple[float, float, float]:
+    """bore_d, outer_d, width (мм) — синхронизировано с каталогом воркера."""
+    t = {
+        "608": (8.0, 22.0, 7.0),
+        "608zz": (8.0, 22.0, 7.0),
+        "6000": (10.0, 26.0, 8.0),
+        "6000zz": (10.0, 26.0, 8.0),
+        "6001": (12.0, 28.0, 8.0),
+        "6001zz": (12.0, 28.0, 8.0),
+        "6200": (10.0, 30.0, 9.0),
+        "6200zz": (10.0, 30.0, 9.0),
+        "6201": (12.0, 32.0, 10.0),
+        "6201zz": (12.0, 32.0, 10.0),
+        "6202": (15.0, 35.0, 11.0),
+        "6202zz": (15.0, 35.0, 11.0),
+    }
+    k = str(series).strip().lower().replace(" ", "")
+    if k not in t:
+        raise ValueError(f"unknown bearing series {series!r}")
+    return t[k]
+
+
+def make_bearing_ring(series: str) -> cq.Shape:
+    bore_d, outer_d, w = _bearing_row(series)
+    r_out, r_in = outer_d / 2.0, bore_d / 2.0
+    outer = cq.Workplane("XY").circle(r_out).extrude(w)
+    return outer.faces(">Z").workplane().circle(r_in).cutThruAll().val()
+
+
+def make_gear_preview(module: float, teeth: int, thickness: float, bore_d: float) -> cq.Shape:
+    """Упрощённый венец: polygon(teeth) по Da = m*(z+2), без эвольвенты (high_lod=false)."""
+    if teeth < 4:
+        raise ValueError("gear teeth must be >= 4")
+    d_outer = module * (teeth + 2)
+    r_outer = d_outer / 2.0
+    r_b = bore_d / 2.0
+    rv = cq.Workplane("XY").polygon(teeth, r_outer).extrude(thickness)
+    return rv.faces("<Z").workplane().circle(r_b).cutThruAll().val()
+'''
+
 
 def _sanitize_var_name(part_id: str) -> str:
     """part_id -> валидный идентификатор Python для переменной."""
@@ -216,6 +258,34 @@ def _emit_part_body(
         lines.append(f"{indent}{var} = None")
         return lines, False
 
+    if kind == "bearing":
+        p = part.get("parameters") or {}
+        series_lit = _py_str(str(p.get("series") or ""))
+        lines.append(f"{indent}{var} = make_bearing_ring({series_lit})")
+        return lines, True
+
+    if kind == "gear":
+        p = part.get("parameters") or {}
+        if bool(p.get("high_lod", False)):
+            lines.append(
+                f"{indent}# WARNING: gear high_lod=true (involute) not implemented — part omitted"
+            )
+            lines.append(f"{indent}{var} = None")
+            return lines, False
+        try:
+            m = float(p["module"])
+            z = int(p["teeth"])
+            th = float(p["thickness"])
+            bd = float(p["bore_diameter"])
+        except (KeyError, TypeError, ValueError):
+            lines.append(f"{indent}# WARNING: gear parameters invalid — part omitted")
+            lines.append(f"{indent}{var} = None")
+            return lines, False
+        lines.append(
+            f"{indent}{var} = make_gear_preview({_py_num(m)}, {z}, {_py_num(th)}, {_py_num(bd)})"
+        )
+        return lines, True
+
     if kind == "cylinder":
         p = part.get("parameters") or {}
         r, h = float(p["radius"]), float(p["height"])
@@ -281,7 +351,7 @@ def _emit_operations(
     indent: str,
 ) -> list[str]:
     lines: list[str] = []
-    if part.get("base_shape") == "fastener":
+    if part.get("base_shape") in ("fastener", "bearing", "gear"):
         return lines
     for op in part.get("operations") or []:
         if not isinstance(op, dict):
@@ -366,6 +436,8 @@ def generate_python_script(payload: dict[str, Any]) -> str:
     lines.append("from cadquery.occ_impl.geom import Plane")
     lines.append("")
     lines.append(_EJECTED_FASTENER_HELPERS.strip())
+    lines.append("")
+    lines.append(_EJECTED_MECHANICAL_HELPERS.strip())
     lines.append("")
     lines.append("")
     lines.append("def build_assembly() -> cq.Assembly:")

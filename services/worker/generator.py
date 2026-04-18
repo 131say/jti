@@ -20,7 +20,9 @@ from worker.core.geometry import (
     expand_circular_pattern_to_hole_dicts,
     expand_linear_pattern_to_hole_dicts,
 )
+from worker.core.bearings import build_bearing_solid
 from worker.core.fasteners import assembly_pose, build_fastener_solid
+from worker.core.gears import build_gear_solid
 from worker.core.primitives import (
     make_box,
     make_cylinder,
@@ -209,10 +211,24 @@ def build_part_solid(
                 f"Part {part.get('part_id')!r}: операции на fastener в MVP не применяются"
             )
         return build_fastener_solid(part.get("parameters") or {})
+    if kind == "bearing":
+        if part.get("operations"):
+            w = warnings if warnings is not None else []
+            w.append(
+                f"Part {part.get('part_id')!r}: операции на bearing в MVP не применяются"
+            )
+        return build_bearing_solid(part.get("parameters") or {})
+    if kind == "gear":
+        if part.get("operations"):
+            w = warnings if warnings is not None else []
+            w.append(
+                f"Part {part.get('part_id')!r}: операции на gear в MVP не применяются"
+            )
+        return build_gear_solid(part.get("parameters") or {})
     if kind in ("sphere", "custom_profile"):
         raise BlueprintGenerationError(
             f"base_shape {kind!r} не поддерживается воркером (используйте cylinder, box, "
-            "extruded_profile, revolved_profile, fastener)"
+            "extruded_profile, revolved_profile, fastener, bearing, gear)"
         )
     raise BlueprintGenerationError(f"Неизвестный base_shape: {kind!r}")
 
