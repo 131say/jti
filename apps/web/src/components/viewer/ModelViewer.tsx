@@ -25,6 +25,13 @@ import {
   type ViewerPbrParams,
   resolveMergedStlMaterial,
 } from "@/lib/materialPresets";
+import {
+  applyExplodeOffsets,
+  computeExplodeMaxMm,
+  type ExplodeMateInfo,
+  wrapMeshesForExplode,
+} from "@/lib/explodedView";
+import { useExplodedView } from "@/hooks/useExplodedView";
 
 import { BomTable } from "@/components/viewer/BomTable";
 import { DrawingsViewer } from "@/components/viewer/DrawingsViewer";
@@ -98,6 +105,8 @@ function GltfBlueprintMesh({
   url,
   blueprintJson,
   kinematicSlider,
+  explodeSlider,
+  explodeMateInfo,
   onKinematicReady,
   onLoaded,
   selectedPartId,
@@ -109,6 +118,8 @@ function GltfBlueprintMesh({
   url: string;
   blueprintJson?: string | null;
   kinematicSlider: number;
+  explodeSlider: number;
+  explodeMateInfo: ExplodeMateInfo;
   onKinematicReady: (info: {
     pivots: number;
     warning: string | null;
@@ -123,18 +134,26 @@ function GltfBlueprintMesh({
   const gltf = useGLTF(url);
   const [root, setRoot] = useState<THREE.Group | null>(null);
   const pivotsRef = useRef<KinematicPivot[]>([]);
+  const explodeMaxMmRef = useRef(80);
 
   useLayoutEffect(() => {
     const cloned = gltf.scene.clone(true);
     const { pivots, warning } = setupBlueprintGltfScene(cloned, blueprintJson);
     pivotsRef.current = pivots;
     onKinematicReady({ pivots: pivots.length, warning });
+    if (explodeMateInfo.hasExplode) {
+      wrapMeshesForExplode(
+        cloned,
+        [...explodeMateInfo.sourceDirections.keys()],
+      );
+      explodeMaxMmRef.current = computeExplodeMaxMm(cloned);
+    }
     setRoot(cloned);
     onLoaded?.();
     return () => {
       disposeObject3D(cloned);
     };
-  }, [gltf, blueprintJson, onKinematicReady, onLoaded]);
+  }, [gltf, blueprintJson, onKinematicReady, onLoaded, explodeMateInfo]);
 
   useLayoutEffect(() => {
     if (!root) return;
@@ -149,12 +168,34 @@ function GltfBlueprintMesh({
   useLayoutEffect(() => {
     if (!root) return;
     applyKinematicPose(pivotsRef.current, kinematicSlider / 100);
+    if (explodeMateInfo.hasExplode) {
+      applyExplodeOffsets(
+        root,
+        explodeMateInfo.sourceDirections,
+        explodeSlider / 100,
+        explodeMaxMmRef.current,
+      );
+    }
     root.updateWorldMatrix(true, true);
     onPartMetricsReady(computePartMetricsMap(root));
-  }, [root, kinematicSlider, onPartMetricsReady]);
+  }, [
+    root,
+    kinematicSlider,
+    explodeSlider,
+    explodeMateInfo,
+    onPartMetricsReady,
+  ]);
 
   useFrame(() => {
     applyKinematicPose(pivotsRef.current, kinematicSlider / 100);
+    if (root && explodeMateInfo.hasExplode) {
+      applyExplodeOffsets(
+        root,
+        explodeMateInfo.sourceDirections,
+        explodeSlider / 100,
+        explodeMaxMmRef.current,
+      );
+    }
   });
 
   if (!root) return null;
@@ -174,6 +215,8 @@ function SceneContent({
   url,
   blueprintJson,
   kinematicSlider,
+  explodeSlider,
+  explodeMateInfo,
   onKinematicReady,
   onLoaded,
   selectedPartId,
@@ -185,6 +228,8 @@ function SceneContent({
   url: string;
   blueprintJson?: string | null;
   kinematicSlider: number;
+  explodeSlider: number;
+  explodeMateInfo: ExplodeMateInfo;
   onKinematicReady: (info: {
     pivots: number;
     warning: string | null;
@@ -214,6 +259,8 @@ function SceneContent({
       url={url}
       blueprintJson={blueprintJson}
       kinematicSlider={kinematicSlider}
+      explodeSlider={explodeSlider}
+      explodeMateInfo={explodeMateInfo}
       onKinematicReady={onKinematicReady}
       onLoaded={onLoaded}
       selectedPartId={selectedPartId}
@@ -246,6 +293,7 @@ export function ModelViewer({
   onLoaded?: () => void;
 }) {
   const [kinematicSlider, setKinematicSlider] = useState(0);
+  const [explodeSlider, setExplodeSlider] = useState(0);
   const [kinematicInfo, setKinematicInfo] = useState<{
     pivots: number;
     warning: string | null;
@@ -280,6 +328,7 @@ export function ModelViewer({
     setViewerTab("scene");
     setDiagnosticHighlightIds(null);
     setDiagnosticSelectedIndex(null);
+    setExplodeSlider(0);
   }, [url, blueprintJson]);
 
   const onKinematicReady = useCallback(
@@ -315,6 +364,9 @@ export function ModelViewer({
 
   const showKinematic =
     !isStlUrl(url) && kinematicInfo.pivots > 0 && !kinematicInfo.warning;
+
+  const { canExplode, info: explodeMateInfo } = useExplodedView(blueprintJson);
+  const showExplode = !isStlUrl(url) && canExplode;
 
   const showInspector = !isStlUrl(url);
 
@@ -370,6 +422,8 @@ export function ModelViewer({
                 url={url}
                 blueprintJson={blueprintJson}
                 kinematicSlider={kinematicSlider}
+                explodeSlider={explodeSlider}
+                explodeMateInfo={explodeMateInfo}
                 onKinematicReady={onKinematicReady}
                 onLoaded={onLoaded}
                 selectedPartId={selectedPartId}
@@ -577,6 +631,23 @@ export function ModelViewer({
                 setKinematicSlider(Number.parseInt(e.target.value, 10))
               }
               className="w-full accent-neutral-300"
+            />
+          </label>
+        </div>
+      ) : null}
+      {showExplode ? (
+        <div className="border-t border-neutral-800 bg-neutral-900/90 px-3 py-2">
+          <label className="flex flex-col gap-1 text-[11px] text-neutral-400">
+            Разнесённый вид (Explode, v3.1) — {explodeSlider}%
+            <input
+              type="range"
+              min={0}
+              max={100}
+              value={explodeSlider}
+              onChange={(e) =>
+                setExplodeSlider(Number.parseInt(e.target.value, 10))
+              }
+              className="w-full accent-sky-500/90"
             />
           </label>
         </div>
