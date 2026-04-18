@@ -20,6 +20,7 @@ from worker.core.geometry import (
     expand_circular_pattern_to_hole_dicts,
     expand_linear_pattern_to_hole_dicts,
 )
+from worker.core.fasteners import assembly_pose, build_fastener_solid
 from worker.core.primitives import (
     make_box,
     make_cylinder,
@@ -35,6 +36,7 @@ __all__ = [
     "build_part_solid",
     "build_shape_from_blueprint",
     "export_artifacts",
+    "export_drawings_to_dir",
     "export_individual_parts_to_dir",
     "export_part_meshes",
     "create_project_zip",
@@ -200,12 +202,76 @@ def build_part_solid(
         return _build_extruded_profile(part, warnings)
     if kind == "revolved_profile":
         return _build_revolved_profile(part, warnings)
+    if kind == "fastener":
+        if part.get("operations"):
+            w = warnings if warnings is not None else []
+            w.append(
+                f"Part {part.get('part_id')!r}: операции на fastener в MVP не применяются"
+            )
+        return build_fastener_solid(part.get("parameters") or {})
     if kind in ("sphere", "custom_profile"):
         raise BlueprintGenerationError(
             f"base_shape {kind!r} не поддерживается воркером (используйте cylinder, box, "
-            "extruded_profile, revolved_profile)"
+            "extruded_profile, revolved_profile, fastener)"
         )
     raise BlueprintGenerationError(f"Неизвестный base_shape: {kind!r}")
+
+
+def _svg_export_opt(projection_dir: tuple[float, float, float] | None) -> dict[str, Any]:
+    opt: dict[str, Any] = {
+        "width": 960,
+        "height": 720,
+        "marginLeft": 12,
+        "marginTop": 12,
+        "showAxes": False,
+        "showHidden": True,
+    }
+    if projection_dir is not None:
+        opt["projectionDir"] = projection_dir
+    return opt
+
+
+def export_drawings_to_dir(
+    payload: dict[str, Any],
+    drawings_dir: Path,
+    warnings: list[str] | None,
+) -> list[str]:
+    """
+    2D-превью в SVG: один файл на вид (iso, front, top). Ошибка по одному виду
+    не прерывает job (warnings дополняются). Возвращает basename успешно записанных файлов.
+    """
+    drawings_dir.mkdir(parents=True, exist_ok=True)
+    w = warnings if warnings is not None else []
+    written: list[str] = []
+    views: list[tuple[str, tuple[float, float, float] | None]] = [
+        ("iso", (0.5, 0.5, 0.5)),
+        ("front", (0.0, -1.0, 0.0)),
+        ("top", (0.0, 0.0, 1.0)),
+    ]
+    for part in (payload.get("geometry") or {}).get("parts") or []:
+        pid = part.get("part_id")
+        if not pid:
+            w.append("geometry.parts: пропущена деталь без part_id (экспорт drawings/)")
+            continue
+        pid_s = str(pid)
+        try:
+            solid = build_part_solid(part)
+        except Exception as e:
+            w.append(f"drawings/{pid_s}: построение тела: {e!s}")
+            continue
+        for suffix, proj in views:
+            path = drawings_dir / f"{pid_s}_{suffix}.svg"
+            try:
+                cq.exporters.export(
+                    solid,
+                    str(path),
+                    exportType="SVG",
+                    opt=_svg_export_opt(proj),
+                )
+                written.append(path.name)
+            except Exception as e:
+                w.append(f"drawings/{path.name}: {e!s}")
+    return written
 
 
 def export_individual_parts_to_dir(
@@ -264,12 +330,13 @@ def build_assembly_from_blueprint(
         if not pid:
             raise BlueprintGenerationError("part_id обязателен для каждой детали")
         try:
+            loc = assembly_pose(part)
             resolved = resolve_part_material(part)
             if resolved is not None:
                 col = Color(resolved.color_r, resolved.color_g, resolved.color_b)
-                root.add(solid, name=pid, color=col)
+                root.add(solid, name=pid, color=col, loc=loc)
             else:
-                root.add(solid, name=pid)
+                root.add(solid, name=pid, loc=loc)
         except ValueError as e:
             raise BlueprintGenerationError(str(e)) from e
 
