@@ -162,6 +162,21 @@ def _transform(obj: Any, gv: dict[str, float], *, in_metadata: bool = False) -> 
     return obj
 
 
+def finalize_resolved_blueprint(
+    raw: dict[str, Any],
+    *,
+    mate_warnings: list[str] | None = None,
+) -> dict[str, Any]:
+    """
+    Полный конвейер: ``resolve_blueprint_variables`` → ``resolve_assembly_mates``.
+    Используется воркером и API до ``ResolvedBlueprintPayload.model_validate``.
+    """
+    from .mate_solver import resolve_assembly_mates
+
+    resolved = resolve_blueprint_variables(copy.deepcopy(raw))
+    return resolve_assembly_mates(resolved, warnings=mate_warnings)
+
+
 def resolve_blueprint_variables(raw: dict[str, Any]) -> dict[str, Any]:
     """
     Копирует корневой dict, проверяет global_variables (только числа), рекурсивно

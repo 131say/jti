@@ -22,7 +22,11 @@ if str(_services_root) not in sys.path:
 
 from pydantic import ValidationError  # noqa: E402
 
-from api.core.resolver import BlueprintResolutionError, resolve_blueprint_variables  # noqa: E402
+from api.core.mate_solver import MateResolutionError  # noqa: E402
+from api.core.resolver import (  # noqa: E402
+    BlueprintResolutionError,
+    finalize_resolved_blueprint,
+)
 from api.job_store import set_job_state  # noqa: E402
 from api.models import ResolvedBlueprintPayload  # noqa: E402
 
@@ -58,10 +62,26 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
     s3 = build_s3_client(endpoint_url=S3_ENDPOINT)
 
     raw_blueprint = copy.deepcopy(blueprint)
+    mate_pipeline_warnings: list[str] = []
     try:
-        resolved_blueprint = resolve_blueprint_variables(copy.deepcopy(raw_blueprint))
+        resolved_blueprint = finalize_resolved_blueprint(
+            raw_blueprint, mate_warnings=mate_pipeline_warnings
+        )
         ResolvedBlueprintPayload.model_validate(resolved_blueprint)
     except BlueprintResolutionError as e:
+        await set_job_state(
+            redis,
+            job_id,
+            {
+                "status": "failed",
+                "artifacts": None,
+                "error": str(e),
+                "bom": None,
+                "diagnostics": None,
+            },
+        )
+        return
+    except MateResolutionError as e:
         await set_job_state(
             redis,
             job_id,
@@ -101,6 +121,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
     ]:
         ensure_bucket_exists(s3, bucket)
         job_warnings: list[str] = []
+        job_warnings.extend(mate_pipeline_warnings)
         assembly = build_assembly_from_blueprint(resolved_blueprint, job_warnings)
         video_key: str | None = None
         script_key: str | None = None

@@ -1,4 +1,4 @@
-"""Pydantic v2 модели Blueprint v1.0–v2.0 (v2.0: опционально global_variables после резолвера)."""
+"""Pydantic v2 модели Blueprint v1.0–v3.0 (v3.0: опционально assembly_mates)."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ class BlueprintMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     project_id: str = Field(min_length=1)
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1"]
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0"]
 
 
 class GlobalSettings(BaseModel):
@@ -125,11 +125,11 @@ class GeometryPartMaterialFields(BaseModel):
     visual: MaterialVisual | None = None
     position: tuple[float, float, float] | None = Field(
         default=None,
-        description="Смещение детали в сборке (мм).",
+        description="Смещение детали в сборке (мм); для v3.0 может вычисляться через assembly_mates.",
     )
     rotation: tuple[float, float, float] | None = Field(
         default=None,
-        description="Поворот в сборке (градусы), как cq.Rot(x,y,z).",
+        description="Поворот в сборке (градусы), как cq.Rot(x,y,z); для v3.0 может вычисляться через assembly_mates.",
     )
 
 
@@ -328,12 +328,33 @@ class SimulationSection(BaseModel):
     joints: list[SimulationJoint]
 
 
+# --- Assembly mates (v3.0) ---
+
+
+class AssemblyMateSnapToOperation(BaseModel):
+    """Привязка детали-источника к центру и направлению hole-операции на целевой детали."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["snap_to_operation"]
+    source_part: str = Field(min_length=1, description="Деталь, pose которой задаётся mate (часто fastener).")
+    target_part: str = Field(min_length=1)
+    target_operation_index: int = Field(ge=0, description="Индекс в operations целевой детали (hole).")
+    reverse_direction: bool = Field(
+        default=False,
+        description="Перевернуть ось вставки на 180° (вход с противоположной стороны).",
+    )
+
+
+AssemblyMate = AssemblyMateSnapToOperation
+
+
 # --- Root payload ---
 
 
 class ResolvedBlueprintPayload(BaseModel):
     """
-    Строго числовой Blueprint после ``resolve_blueprint_variables`` —
+    Строго числовой Blueprint после ``resolve_blueprint_variables`` и ``resolve_assembly_mates`` —
     для воркера (CadQuery, MJCF, экспорт Python).
     """
 
@@ -347,6 +368,10 @@ class ResolvedBlueprintPayload(BaseModel):
     global_settings: GlobalSettings
     geometry: GeometrySection
     simulation: SimulationSection
+    assembly_mates: list[AssemblyMate] | None = Field(
+        default=None,
+        description="Логические привязки (v3.0); резолвер заполняет pose у source до генерации CAD.",
+    )
 
 
 # Обратная совместимость с кодом и тестами, ожидающими имя BlueprintPayload

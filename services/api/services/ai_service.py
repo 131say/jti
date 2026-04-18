@@ -9,7 +9,9 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from core.resolver import BlueprintResolutionError, resolve_blueprint_variables
+from core.mate_solver import MateResolutionError
+from core.resolver import BlueprintResolutionError, finalize_resolved_blueprint
+from models import ResolvedBlueprintPayload
 from models_raw import RawBlueprintPayload
 
 # Максимум попыток исправления после первой генерации (всего до 1 + N вызовов Gemini).
@@ -39,11 +41,11 @@ class AiBlueprintValidationError(AiServiceError):
 
 
 SYSTEM_PROMPT = """You are a mechanical CAD engineer assistant for AI-Forge.
-Your task: produce exactly ONE JSON object that conforms to Blueprint schema version 1.0 through 2.1.
+Your task: produce exactly ONE JSON object that conforms to Blueprint schema version 1.0 through 3.0.
 
 Hard rules:
-- Root keys: required metadata, global_settings, geometry, simulation. Optional global_variables (Blueprint v2.0 parametric constants). No other extra keys.
-- metadata.schema_version: "1.0" … "2.1" (use "2.1" when you include fasteners; "2.0" when you use global_variables and $expressions; "1.4" for revolved_profile without globals; "1.3" for extruded_profile; "1.2" for hole patterns; "1.1" for material presets on parts).
+- Root keys: required metadata, global_settings, geometry, simulation. Optional global_variables (Blueprint v2.0 parametric constants). Optional assembly_mates (Blueprint v3.0: snap fasteners to hole operations). No other extra keys.
+- metadata.schema_version: "1.0" … "3.0" (use "3.0" when you use assembly_mates to avoid duplicating coordinates; "2.1" when you include fasteners without mates; "2.0" when you use global_variables and $expressions; "1.4" for revolved_profile without globals; "1.3" for extruded_profile; "1.2" for hole patterns; "1.1" for material presets on parts).
 - metadata.project_id: short snake_case id derived from the user request.
 - global_settings.units: prefer "mm" unless the user specifies otherwise. up_axis: "Z" unless specified.
 - geometry.parts: at least one part. Supported base_shape values for generation: "cylinder", "box", "extruded_profile", "revolved_profile", "fastener". Do NOT use "sphere" or "custom_profile" for this pipeline.
@@ -53,6 +55,7 @@ Hard rules:
 - extruded_profile (schema 1.3): non-standard plate/bracket shapes in XY. parameters.points = array of [x,y] vertices in order along a closed polygon (last point may equal first; server normalizes). parameters.height = extrusion along +Z (mm). Straight segments only; no sketch holes (use hole operations after extrusion). For bolt circles or grids of holes, use linear_pattern / circular_pattern (v1.2) in operations.
 - revolved_profile (schema 1.4): bodies of revolution (shafts, pulleys). parameters.points = closed polygon in the XZ sketch plane: [x, z] where x is radial distance from the revolution axis (world Y) and MUST be >= 0 for every vertex (right half-plane only; do not cross the axis). parameters.angle = revolve angle in degrees, strictly (0, 360] (use 360 for full solids). One outer loop only; no holes in the sketch. Axis contact policy: the contour may touch x=0 only as one continuous edge on the axis or at isolated vertices; do NOT create multiple separate on-axis edge runs (non-manifold risk).
 - Fasteners (schema 2.1): base_shape "fastener". parameters: type "bolt_hex" | "nut_hex" | "washer"; size "M6"|"M8"|"M10"|"M12"; for bolt_hex set length (mm) = shaft length under head (no modeled threads). fit: "clearance" | "tight" (reserved, default clearance). operations: [] for fasteners. Optional position [x,y,z] and rotation [rx,ry,rz] in degrees (world frame, same convention as cq.Rot) to place the part in the assembly.
+- Assembly mates (schema 3.0, strongly recommended instead of hand-matched coords): optional root array "assembly_mates". Each entry: type "snap_to_operation"; source_part = part_id of the part to move (usually a fastener); target_part = part_id of the plate/bracket that has a hole; target_operation_index = 0-based index of a hole operation in that part's "operations" array (MVP: must point to a direct hole, not a pattern operation); reverse_direction optional boolean (true flips insertion axis 180°). The fastener local insertion axis is always +Z; the resolver aligns +Z to the hole direction in world space (quaternion-based, no duplicated position/direction math). Omit position/rotation on source parts when a mate defines them (mates override explicit pose with a server warning). Prefer mates whenever holes use parametric $ expressions so coordinates never drift out of sync.
 - Clearance / DFM (critical): Nominal metric fastener shank diameter equals the M size in mm (e.g. M8 → ~8 mm). Through-holes in manufactured parts that must clear the bolt shank MUST be oversized: at least +0.4 mm, preferably +0.5 mm (e.g. M8 bolt → hole diameter ≥ 8.5 mm). Undersized holes will fail interference checks.
 - Hole operations (optional): type must be "hole", diameter > 0, depth is either the string "through_all" OR a positive number (blind hole), position [x,y,z], direction [x,y,z] (any non-zero vector; will be normalized server-side).
 - Fillet (optional): type "fillet", radius > 0, selector string (default "ALL" for all edges). Use CadQuery-style edge selectors to limit edges, e.g. "ALL", "|Z" (edges parallel to Z), ">Z", "<X". If the radius is too large for the geometry, the server may skip the fillet and record a warning.
@@ -72,7 +75,7 @@ Output requirements:
 - Use JSON numbers for numeric fields when not using v2.0 expressions; with v2.0, use numbers for global_variables values and either numbers or allowed string expressions for linked dimensions as above. String fields that are not numeric (e.g. part_id, depth "through_all", selectors) must stay as plain strings without $ unless they intentionally encode a formula (rare).
 """
 
-EDIT_SYSTEM_PROMPT = """You are editing an existing AI-Forge Blueprint v1.0/v1.1/v1.2/v1.3/v1.4/v2.0/v2.1 (mechanical CAD).
+EDIT_SYSTEM_PROMPT = """You are editing an existing AI-Forge Blueprint v1.0/v1.1/v1.2/v1.3/v1.4/v2.0/v2.1/v3.0 (mechanical CAD).
 
 The blueprint you receive is a Raw Blueprint: geometry may use string expressions with $variable references and global_variables (schema 2.0). Preserve formulas and global_variables structure when possible.
 
@@ -83,7 +86,7 @@ You receive:
 2) The current valid blueprint as JSON (below in the user message).
 
 Your task:
-- Return exactly ONE complete JSON object that still conforms to Blueprint schema v1.0 through v2.1.
+- Return exactly ONE complete JSON object that still conforms to Blueprint schema v1.0 through v3.0.
 - Apply ONLY the changes implied by the user request; keep everything else identical unless consistency requires a small adjustment.
 - Preserve part_id values, joint topology, and material references unless the user explicitly asks to rename or restructure.
 - Use base_shape "cylinder", "box", "extruded_profile", "revolved_profile", or "fastener" when needed (same pipeline as zero-shot). For fasteners keep clearance holes in mating parts ≥ M + 0.5 mm when possible.
@@ -169,7 +172,7 @@ def _generate_json_from_gemini(
 
 def _repair_prompt(invalid_data: dict[str, Any], err: ValidationError) -> str:
     return (
-        "The previous JSON failed Pydantic validation for Blueprint (v1.x or v2.0). "
+        "The previous JSON failed Pydantic validation for Blueprint (v1.x through v3.0). "
         "Output ONE corrected JSON object only (same schema as before).\n\n"
         "Validation errors:\n"
         + json.dumps(err.errors(), indent=2, default=str)
@@ -242,9 +245,24 @@ def generate_blueprint_from_prompt(
             )
             continue
         try:
-            resolve_blueprint_variables(raw.model_dump(mode="json"))
+            fin = finalize_resolved_blueprint(
+                raw.model_dump(mode="json"), mate_warnings=None
+            )
+            ResolvedBlueprintPayload.model_validate(fin)
         except BlueprintResolutionError as e:
             raise AiBlueprintValidationError(str(e)) from e
+        except MateResolutionError as e:
+            raise AiBlueprintValidationError(str(e)) from e
+        except ValidationError as e:
+            last_err = e
+            if repair_attempt >= MAX_REPAIR_ATTEMPTS:
+                break
+            data = _generate_json_from_gemini(
+                model,
+                gen_cfg,
+                _repair_prompt(data, e),
+            )
+            continue
         return raw
 
     assert last_err is not None

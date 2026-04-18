@@ -1,7 +1,7 @@
 """
 Исходный (source-of-truth) Blueprint: числовые поля геометрии могут быть строками с $-выражениями.
 
-После ``resolve_blueprint_variables`` JSON приводится к ``ResolvedBlueprintPayload`` (только числа).
+После ``finalize_resolved_blueprint`` (variables + assembly_mates) JSON приводится к ``ResolvedBlueprintPayload``.
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 try:
     from models import (
+        AssemblyMate,
         BlueprintMetadata,
         GeometryPartMaterialFields,
         GlobalSettings,
@@ -19,6 +20,7 @@ try:
     )
 except ModuleNotFoundError:  # тесты: PYTHONPATH=services → пакет api
     from api.models import (
+        AssemblyMate,
         BlueprintMetadata,
         GeometryPartMaterialFields,
         GlobalSettings,
@@ -253,6 +255,10 @@ class RawBlueprintPayload(BaseModel):
     global_settings: GlobalSettings
     geometry: RawGeometrySection
     simulation: SimulationSection
+    assembly_mates: list[AssemblyMate] | None = Field(
+        default=None,
+        description="Сборочные привязки v3.0; после резолва заполняют pose у source_part.",
+    )
 
 
 class JobCreateWithPrompt(BaseModel):

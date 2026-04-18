@@ -9,7 +9,8 @@ from fastapi.encoders import jsonable_encoder
 from pydantic import ValidationError
 from redis.asyncio import Redis
 
-from core.resolver import BlueprintResolutionError, resolve_blueprint_variables
+from core.mate_solver import MateResolutionError
+from core.resolver import BlueprintResolutionError, finalize_resolved_blueprint
 from job_store import get_job_state, set_job_state
 from models import (
     JobArtifacts,
@@ -17,6 +18,7 @@ from models import (
     JobCreateResponse,
     JobDiagnostics,
     JobStatusResponse,
+    ResolvedBlueprintPayload,
 )
 from models_raw import RawBlueprintPayload
 from services.ai_service import (
@@ -69,9 +71,19 @@ async def create_job(request: Request) -> JobCreateResponse:
                     detail=jsonable_encoder(e.errors()),
                 ) from e
             try:
-                resolve_blueprint_variables(cb_raw.model_dump(mode="json"))
+                fin = finalize_resolved_blueprint(
+                    cb_raw.model_dump(mode="json"), mate_warnings=None
+                )
+                ResolvedBlueprintPayload.model_validate(fin)
             except BlueprintResolutionError as e:
                 raise HTTPException(status_code=422, detail=str(e)) from e
+            except MateResolutionError as e:
+                raise HTTPException(status_code=422, detail=str(e)) from e
+            except ValidationError as e:
+                raise HTTPException(
+                    status_code=422,
+                    detail=jsonable_encoder(e.errors()),
+                ) from e
             current_blueprint = cb_raw
         diagnostics_context: dict | None = None
         if "diagnostics_context" in body and body["diagnostics_context"] is not None:
@@ -110,9 +122,19 @@ async def create_job(request: Request) -> JobCreateResponse:
                 detail=jsonable_encoder(e.errors()),
             ) from e
         try:
-            resolve_blueprint_variables(raw_payload.model_dump(mode="json"))
+            fin = finalize_resolved_blueprint(
+                raw_payload.model_dump(mode="json"), mate_warnings=None
+            )
+            ResolvedBlueprintPayload.model_validate(fin)
         except BlueprintResolutionError as e:
             raise HTTPException(status_code=422, detail=str(e)) from e
+        except MateResolutionError as e:
+            raise HTTPException(status_code=422, detail=str(e)) from e
+        except ValidationError as e:
+            raise HTTPException(
+                status_code=422,
+                detail=jsonable_encoder(e.errors()),
+            ) from e
         payload = raw_payload
 
     job_id = str(uuid.uuid4())
