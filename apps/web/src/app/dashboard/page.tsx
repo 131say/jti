@@ -73,10 +73,10 @@ export default function DashboardPage() {
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 px-4 py-3">
         <div className="flex items-center gap-3">
           <Link
-            href="/"
+            href="/editor"
             className="text-sm text-neutral-400 hover:text-neutral-200"
           >
-            ← Workspace
+            ← Редактор
           </Link>
           <h1 className="text-lg font-semibold">Мои проекты</h1>
         </div>
@@ -128,8 +128,8 @@ export default function DashboardPage() {
         ) : items && items.length === 0 ? (
           <p className="text-sm text-neutral-500">
             Пока нет сохранённых проектов. Создайте модель в{" "}
-            <Link href="/" className="underline">
-              Workspace
+            <Link href="/editor" className="underline">
+              редакторе
             </Link>{" "}
             и нажмите «Сохранить».
           </p>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
               <li key={p.project_id}>
                 <div className="flex items-stretch gap-2 rounded border border-neutral-800 bg-neutral-900/40 hover:border-neutral-600">
                   <Link
-                    href={`/?project=${encodeURIComponent(p.project_id)}`}
+                    href={`/editor?project=${encodeURIComponent(p.project_id)}`}
                     className="flex min-w-0 flex-1 flex-col px-4 py-3"
                   >
                     <span className="font-medium text-neutral-100">{p.name}</span>

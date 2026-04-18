@@ -33,6 +33,7 @@ export function ProjectTopBar({
   onFork,
   forkBusy,
   onLoginForFork,
+  liveDemo = false,
 }: {
   projectName: string;
   onProjectNameChange: (name: string) => void;
@@ -54,28 +55,45 @@ export function ProjectTopBar({
   forkBusy: boolean;
   /** Для гостя на чужом публичном проекте */
   onLoginForFork?: () => void;
+  /** Публичное демо без облака: без сохранения, имя только для отображения */
+  liveDemo?: boolean;
 }) {
-  const showSave = !workspaceReadOnly && (!hasProjectId ? Boolean(user) : true);
+  const showSave =
+    !workspaceReadOnly &&
+    !liveDemo &&
+    (!hasProjectId ? Boolean(user) : true);
   const showFork =
     workspaceReadOnly &&
     hasProjectId &&
     Boolean(user) &&
-    !isProjectOwner;
+    !isProjectOwner &&
+    !liveDemo;
   const showForkLogin =
-    workspaceReadOnly && hasProjectId && !user && !isProjectOwner;
+    workspaceReadOnly && hasProjectId && !user && !isProjectOwner && !liveDemo;
   const showOwnerToggle = Boolean(
-    user && hasProjectId && isProjectOwner && !workspaceReadOnly,
+    user && hasProjectId && isProjectOwner && !workspaceReadOnly && !liveDemo,
   );
 
   return (
     <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-neutral-800 bg-neutral-950 px-3 py-2 md:px-4">
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
         <Link
+          href="/"
+          className="shrink-0 rounded border border-neutral-800 px-2 py-1 text-[11px] text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
+        >
+          Главная
+        </Link>
+        <Link
           href="/dashboard"
           className="shrink-0 rounded border border-neutral-800 px-2 py-1 text-[11px] text-neutral-400 hover:border-neutral-600 hover:text-neutral-200"
         >
           Мои проекты
         </Link>
+        {liveDemo ? (
+          <span className="shrink-0 rounded border border-amber-700/60 bg-amber-950/50 px-2 py-1 text-[11px] font-medium text-amber-100/95">
+            Live demo · только просмотр
+          </span>
+        ) : null}
         <label className="sr-only" htmlFor="project-name-input">
           Название проекта
         </label>
@@ -84,7 +102,7 @@ export function ProjectTopBar({
           type="text"
           value={projectName}
           onChange={(e) => onProjectNameChange(e.target.value)}
-          disabled={disabled || workspaceReadOnly}
+          disabled={disabled || workspaceReadOnly || liveDemo}
           placeholder="Название проекта"
           className="min-w-[120px] max-w-md flex-1 rounded border border-neutral-800 bg-neutral-900 px-2 py-1.5 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none disabled:opacity-50"
         />
