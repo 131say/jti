@@ -58,7 +58,13 @@ export function BomTable({
                   className="border-b border-neutral-800/80 hover:bg-neutral-900/40"
                 >
                   <td className="px-2 py-1.5 font-mono text-[11px] text-neutral-100">
-                    {row.part_id}
+                    <div>{row.catalog_label ?? row.part_id}</div>
+                    {row.catalog_label ? (
+                      <div className="mt-0.5 text-[10px] text-neutral-500">
+                        {row.part_id}
+                        {row.item_type === "purchased" ? " · закупное" : null}
+                      </div>
+                    ) : null}
                   </td>
                   <td className="px-2 py-1.5 text-neutral-400">
                     {row.material ?? "—"}

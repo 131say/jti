@@ -33,6 +33,8 @@ class TestZipPackage(unittest.TestCase):
             (base / "parts" / "b.stl").write_bytes(b"stlB")
             (base / "scripts" / "build_model.py").write_text("# eject\n", encoding="utf-8")
             (base / "simulation" / "physics_preview.mp4").write_bytes(b"mp4")
+            (base / "drawings").mkdir(exist_ok=True)
+            (base / "drawings" / "part_a_iso.svg").write_text("<svg/>", encoding="utf-8")
             zpath = base / "project.zip"
             create_project_zip(base, zpath)
             self.assertTrue(zpath.is_file())
@@ -50,6 +52,7 @@ class TestZipPackage(unittest.TestCase):
                     "parts/a.stl",
                     "parts/a.step",
                     "parts/b.stl",
+                    "drawings/part_a_iso.svg",
                 },
             )
 

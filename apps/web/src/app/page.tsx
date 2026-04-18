@@ -13,8 +13,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { type ChatMessage, CopilotSidebar } from "@/components/CopilotSidebar";
 import { CodeViewerModal } from "@/components/CodeViewerModal";
+import { LoginModal } from "@/components/LoginModal";
 import { ParametricPanel } from "@/components/ParametricPanel";
 import { ProjectTopBar } from "@/components/ProjectTopBar";
+import { useAuth } from "@/context/AuthContext";
 import { ModelViewer } from "@/components/viewer/ModelViewer";
 import { useBlueprintHistory } from "@/hooks/useBlueprintHistory";
 import {
@@ -23,9 +25,11 @@ import {
 } from "@/hooks/useJobPolling";
 import type { JobArtifacts, JobBom, ProjectLastArtifacts } from "@/lib/api";
 import {
+  forkProject,
   getProject,
   postProject,
   putProject,
+  type ProjectRecord,
 } from "@/lib/api";
 
 /** Минимальная проверка «похоже на Blueprint v1» для прикрепления к промпту. */
@@ -59,6 +63,7 @@ function cloudArtifactsFromLast(
     zip_url: la.zip_url,
     video_url: la.video_url,
     script_url: la.script_url,
+    drawings_urls: la.drawings_urls ?? undefined,
   };
 }
 
@@ -94,6 +99,27 @@ function HomePageInner() {
   );
   const [cloudBom, setCloudBom] = useState<JobBom | null>(null);
   const [savingProject, setSavingProject] = useState(false);
+  const [loginOpen, setLoginOpen] = useState(false);
+  const [remoteProject, setRemoteProject] = useState<ProjectRecord | null>(
+    null,
+  );
+  const [publicBusy, setPublicBusy] = useState(false);
+  const [forkBusy, setForkBusy] = useState(false);
+
+  const { user, logout } = useAuth();
+
+  const workspaceReadOnly = useMemo(() => {
+    if (!remoteProject) return false;
+    if (!user) return true;
+    if (!remoteProject.owner_id) return false;
+    return remoteProject.owner_id !== user.id;
+  }, [remoteProject, user]);
+
+  const isProjectOwner = useMemo(() => {
+    if (!remoteProject || !user) return false;
+    if (!remoteProject.owner_id) return true;
+    return remoteProject.owner_id === user.id;
+  }, [remoteProject, user]);
 
   const loadedIdRef = useRef<string | null>(null);
   const demoLoadedRef = useRef(false);
@@ -231,16 +257,12 @@ function HomePageInner() {
   useEffect(() => {
     if (!projectIdParam) {
       loadedIdRef.current = null;
+      setRemoteProject(null);
       setCloudArtifacts(null);
       setCloudBom(null);
       setProjectLoadStatus("idle");
       setProjectLoadError(null);
       setProjectName("Untitled Project");
-      return;
-    }
-
-    if (loadedIdRef.current === projectIdParam) {
-      setProjectLoadStatus("ready");
       return;
     }
 
@@ -252,6 +274,7 @@ function HomePageInner() {
       try {
         const rec = await getProject(projectIdParam);
         if (cancelled) return;
+        setRemoteProject(rec);
         setProjectName(rec.name);
         reset(JSON.stringify(rec.blueprint, null, 2));
         setChatMessages([]);
@@ -272,7 +295,7 @@ function HomePageInner() {
     return () => {
       cancelled = true;
     };
-  }, [projectIdParam, reset]);
+  }, [projectIdParam, reset, user?.id]);
 
   useEffect(() => {
     if (phase !== "error" || !error) return;
@@ -311,11 +334,57 @@ function HomePageInner() {
       zip_url: a.zip_url ?? undefined,
       video_url: a.video_url ?? undefined,
       script_url: a.script_url ?? undefined,
+      drawings_urls: a.drawings_urls ?? undefined,
       bom: b ?? undefined,
     };
   }, [jobDisplay, artifacts, cloudArtifacts, bom, cloudBom]);
 
+  const handlePublicToggle = useCallback(
+    async (v: boolean) => {
+      if (!projectIdParam || !user || !isProjectOwner) return;
+      setPublicBusy(true);
+      try {
+        const rec = await putProject(projectIdParam, { is_public: v });
+        setRemoteProject(rec);
+      } catch (e) {
+        setToastMsg(e instanceof Error ? e.message : String(e));
+      } finally {
+        setPublicBusy(false);
+      }
+    },
+    [projectIdParam, user, isProjectOwner],
+  );
+
+  const handleFork = useCallback(async () => {
+    if (!projectIdParam || !user) {
+      setLoginOpen(true);
+      return;
+    }
+    setForkBusy(true);
+    try {
+      const r = await forkProject(projectIdParam);
+      loadedIdRef.current = null;
+      router.replace(`/?project=${encodeURIComponent(r.project_id)}`, {
+        scroll: false,
+      });
+      setToastMsg("Копия проекта создана в вашем workspace");
+    } catch (e) {
+      setToastMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setForkBusy(false);
+    }
+  }, [projectIdParam, user, router]);
+
   const handleSaveProject = useCallback(async () => {
+    if (!user) {
+      setLoginOpen(true);
+      setToastMsg("Войдите, чтобы сохранить проект в облаке");
+      return;
+    }
+    if (workspaceReadOnly) {
+      setToastMsg("Нет прав на изменение этого проекта.");
+      return;
+    }
     let bp: object;
     try {
       bp = JSON.parse(present) as object;
@@ -327,11 +396,12 @@ function HomePageInner() {
     setSavingProject(true);
     try {
       if (projectIdParam) {
-        await putProject(projectIdParam, {
+        const updated = await putProject(projectIdParam, {
           name: projectName,
           blueprint: bp,
           ...(la !== null ? { last_artifacts: la } : {}),
         });
+        setRemoteProject(updated);
         loadedIdRef.current = projectIdParam;
         setToastMsg("Проект сохранён");
       } else {
@@ -357,6 +427,8 @@ function HomePageInner() {
     projectIdParam,
     router,
     buildLastArtifactsPayload,
+    user,
+    workspaceReadOnly,
   ]);
 
   const handleShareProject = useCallback(() => {
@@ -379,6 +451,10 @@ function HomePageInner() {
   );
 
   const onRunCode = () => {
+    if (workspaceReadOnly) {
+      setToastMsg("Режим только просмотра: Fork или откройте свой проект.");
+      return;
+    }
     try {
       const bp = JSON.parse(present) as object;
       void runForge(bp);
@@ -418,6 +494,11 @@ function HomePageInner() {
 
   return (
     <div className="flex min-h-screen flex-col">
+      <LoginModal
+        open={loginOpen}
+        onClose={() => setLoginOpen(false)}
+        onLoggedIn={() => setLoginOpen(false)}
+      />
       <ProjectTopBar
         projectName={projectName}
         onProjectNameChange={setProjectName}
@@ -426,6 +507,17 @@ function HomePageInner() {
         saving={savingProject}
         disabled={projectBusy || projectLoadStatus === "error"}
         hasProjectId={Boolean(projectIdParam)}
+        user={user}
+        onLoginClick={() => setLoginOpen(true)}
+        onLogout={logout}
+        workspaceReadOnly={workspaceReadOnly}
+        isProjectOwner={isProjectOwner}
+        isPublic={Boolean(remoteProject?.is_public)}
+        onIsPublicChange={handlePublicToggle}
+        publicBusy={publicBusy}
+        onFork={handleFork}
+        forkBusy={forkBusy}
+        onLoginForFork={() => setLoginOpen(true)}
       />
       <CodeViewerModal
         open={codeModalOpen}
@@ -560,10 +652,11 @@ function HomePageInner() {
             </div>
           ) : (
             <textarea
-              className="min-h-[220px] flex-1 rounded border border-neutral-800 bg-neutral-950 p-3 font-mono text-xs text-neutral-100"
+              className="min-h-[220px] flex-1 rounded border border-neutral-800 bg-neutral-950 p-3 font-mono text-xs text-neutral-100 disabled:opacity-60"
               spellCheck={false}
               value={present}
               onChange={(e) => setPresent(e.target.value)}
+              disabled={workspaceReadOnly || projectBusy}
             />
           )}
 
@@ -571,7 +664,7 @@ function HomePageInner() {
             <button
               type="button"
               onClick={onRunCode}
-              disabled={busy || projectBusy}
+              disabled={busy || projectBusy || workspaceReadOnly}
               className="rounded bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-900 disabled:opacity-50"
             >
               {busy ? "Выполняется…" : "Run Forge (JSON)"}
@@ -648,6 +741,7 @@ function HomePageInner() {
                   blueprintJson={present}
                   bom={displayBom}
                   zipUrl={zipUrlForViewer}
+                  drawingsUrls={displayArtifacts?.drawings_urls ?? null}
                   diagnostics={
                     jobDisplay ? diagnostics : null
                   }
@@ -696,7 +790,7 @@ function HomePageInner() {
             <ParametricPanel
               jsonText={present}
               baselineJson={previousCommitted}
-              disabled={busy || projectBusy}
+              disabled={busy || projectBusy || workspaceReadOnly}
               onApply={(obj) => {
                 commit(JSON.stringify(obj, null, 2));
                 void runForge(obj);
@@ -710,6 +804,7 @@ function HomePageInner() {
             pending={copilotPending}
             hasBlueprintContext={hasBlueprintContext}
             onSend={handleCopilotSend}
+            readOnly={workspaceReadOnly}
           />
         </div>
       </div>

@@ -27,6 +27,7 @@ import {
 } from "@/lib/materialPresets";
 
 import { BomTable } from "@/components/viewer/BomTable";
+import { DrawingsViewer } from "@/components/viewer/DrawingsViewer";
 import { DiagnosticsPanel } from "@/components/viewer/DiagnosticsPanel";
 import { JointGizmos } from "@/components/viewer/JointGizmos";
 import { PartInspector } from "@/components/viewer/PartInspector";
@@ -229,6 +230,7 @@ export function ModelViewer({
   blueprintJson,
   bom,
   zipUrl,
+  drawingsUrls,
   diagnostics,
   onLoaded,
 }: {
@@ -237,6 +239,8 @@ export function ModelViewer({
   /** BOM с API (после успешной генерации). */
   bom?: JobBom | null;
   zipUrl?: string | null;
+  /** Presigned URL SVG 2D-превью (по одному на вид). */
+  drawingsUrls?: string[] | null;
   /** Результаты DFM с воркера. */
   diagnostics?: JobDiagnostics | null;
   onLoaded?: () => void;
@@ -254,9 +258,9 @@ export function ModelViewer({
     string,
     PartMetricEntry
   > | null>(null);
-  const [viewerTab, setViewerTab] = useState<"scene" | "bom" | "diagnostics">(
-    "scene",
-  );
+  const [viewerTab, setViewerTab] = useState<
+    "scene" | "bom" | "diagnostics" | "drawings"
+  >("scene");
   const [diagnosticHighlightIds, setDiagnosticHighlightIds] = useState<
     string[] | null
   >(null);
@@ -266,6 +270,7 @@ export function ModelViewer({
 
   const hasBomPanel = Boolean(bom != null || zipUrl);
   const hasDiagnosticsPanel = diagnostics != null;
+  const hasDrawingsPanel = Boolean(drawingsUrls?.length);
 
   useEffect(() => {
     setSelectedPartId(null);
@@ -316,14 +321,28 @@ export function ModelViewer({
   useEffect(() => {
     if (hasBomPanel && isStlUrl(url)) {
       setViewerTab("bom");
+    } else if (
+      hasDrawingsPanel &&
+      !hasBomPanel &&
+      !hasDiagnosticsPanel &&
+      isStlUrl(url)
+    ) {
+      setViewerTab("drawings");
     }
-  }, [hasBomPanel, url]);
+  }, [hasBomPanel, hasDrawingsPanel, hasDiagnosticsPanel, url]);
 
   const useTabs =
-    showInspector && (hasBomPanel || hasDiagnosticsPanel);
+    (showInspector &&
+      (hasBomPanel || hasDiagnosticsPanel || hasDrawingsPanel)) ||
+    (!showInspector &&
+      hasDrawingsPanel &&
+      (hasBomPanel || hasDiagnosticsPanel));
 
   const showBottomPanel =
-    showInspector || hasBomPanel || hasDiagnosticsPanel;
+    showInspector ||
+    hasBomPanel ||
+    hasDiagnosticsPanel ||
+    hasDrawingsPanel;
 
   const onDiagnosticSelectCheck = useCallback(
     (index: number | null, partIds: string[]) => {
@@ -379,23 +398,25 @@ export function ModelViewer({
               role="tablist"
               aria-label="Панель просмотра"
             >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={viewerTab === "scene"}
-                onClick={() => {
-                  setViewerTab("scene");
-                  setDiagnosticHighlightIds(null);
-                  setDiagnosticSelectedIndex(null);
-                }}
-                className={`px-3 py-2 text-[11px] font-medium transition-colors ${
-                  viewerTab === "scene"
-                    ? "border-b-2 border-neutral-200 text-neutral-100"
-                    : "text-neutral-500 hover:text-neutral-300"
-                }`}
-              >
-                Сцена
-              </button>
+              {showInspector ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewerTab === "scene"}
+                  onClick={() => {
+                    setViewerTab("scene");
+                    setDiagnosticHighlightIds(null);
+                    setDiagnosticSelectedIndex(null);
+                  }}
+                  className={`px-3 py-2 text-[11px] font-medium transition-colors ${
+                    viewerTab === "scene"
+                      ? "border-b-2 border-neutral-200 text-neutral-100"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  Сцена
+                </button>
+              ) : null}
               {hasBomPanel ? (
                 <button
                   type="button"
@@ -428,6 +449,25 @@ export function ModelViewer({
                   }`}
                 >
                   Диагностика
+                </button>
+              ) : null}
+              {hasDrawingsPanel ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewerTab === "drawings"}
+                  onClick={() => {
+                    setViewerTab("drawings");
+                    setDiagnosticHighlightIds(null);
+                    setDiagnosticSelectedIndex(null);
+                  }}
+                  className={`px-3 py-2 text-[11px] font-medium transition-colors ${
+                    viewerTab === "drawings"
+                      ? "border-b-2 border-neutral-200 text-neutral-100"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  Чертежи (2D)
                 </button>
               ) : null}
             </div>
@@ -481,30 +521,36 @@ export function ModelViewer({
                 />
               </div>
             ) : null}
-            {showInspector &&
-            useTabs &&
-            hasBomPanel &&
-            viewerTab === "bom" ? (
+            {useTabs && hasBomPanel && viewerTab === "bom" ? (
               <BomTable bom={bom ?? null} zipUrl={zipUrl ?? null} />
             ) : null}
-            {showInspector &&
-            useTabs &&
-            hasDiagnosticsPanel &&
-            viewerTab === "diagnostics" ? (
+            {useTabs && hasDiagnosticsPanel && viewerTab === "diagnostics" ? (
               <DiagnosticsPanel
                 diagnostics={diagnostics ?? null}
                 selectedIndex={diagnosticSelectedIndex}
                 onSelectCheck={onDiagnosticSelectCheck}
               />
             ) : null}
-            {!showInspector && hasBomPanel ? (
+            {useTabs && hasDrawingsPanel && viewerTab === "drawings" ? (
+              <DrawingsViewer
+                urls={drawingsUrls ?? []}
+                zipUrl={zipUrl ?? null}
+              />
+            ) : null}
+            {!useTabs && !showInspector && hasBomPanel ? (
               <BomTable bom={bom ?? null} zipUrl={zipUrl ?? null} />
             ) : null}
-            {!showInspector && hasDiagnosticsPanel ? (
+            {!useTabs && !showInspector && hasDiagnosticsPanel ? (
               <DiagnosticsPanel
                 diagnostics={diagnostics ?? null}
                 selectedIndex={diagnosticSelectedIndex}
                 onSelectCheck={onDiagnosticSelectCheck}
+              />
+            ) : null}
+            {!useTabs && !showInspector && hasDrawingsPanel ? (
+              <DrawingsViewer
+                urls={drawingsUrls ?? []}
+                zipUrl={zipUrl ?? null}
               />
             ) : null}
           </div>

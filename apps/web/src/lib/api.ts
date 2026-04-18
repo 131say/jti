@@ -1,6 +1,14 @@
+import { getStoredAccessToken } from "@/lib/auth-storage";
+
 const baseUrl = () =>
   process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
   "http://127.0.0.1:8899";
+
+function authHeader(): HeadersInit {
+  const t = getStoredAccessToken();
+  if (!t) return {};
+  return { Authorization: `Bearer ${t}` };
+}
 
 export type JobStatus = "queued" | "in_progress" | "completed" | "failed";
 
@@ -12,6 +20,8 @@ export interface JobArtifacts {
   video_url?: string | null;
   /** Presigned URL для build_model.py (CadQuery eject). */
   script_url?: string | null;
+  /** Presigned GET на SVG 2D-превью (по одному на вид). */
+  drawings_urls?: string[] | null;
 }
 
 export interface JobBomPart {
@@ -20,6 +30,9 @@ export interface JobBomPart {
   mass_g: number;
   volume_cm3: number;
   cost_usd: number;
+  item_type?: "manufactured" | "purchased";
+  /** Человекочитаемая строка для закупных (метизы). */
+  catalog_label?: string | null;
 }
 
 /** BOM с воркера (без парсинга CSV на клиенте). */
@@ -110,10 +123,13 @@ export interface ProjectLastArtifacts {
   video_url?: string | null;
   script_url?: string | null;
   bom?: JobBom | null;
+  drawings_urls?: string[] | null;
 }
 
 export interface ProjectRecord {
   project_id: string;
+  owner_id?: string | null;
+  is_public?: boolean;
   name: string;
   version: "2.0";
   blueprint: Record<string, unknown>;
@@ -136,11 +152,68 @@ export interface ProjectUpdateRequest {
   name?: string;
   blueprint?: object;
   last_artifacts?: ProjectLastArtifacts | null;
+  is_public?: boolean | null;
+}
+
+export interface ProjectSummary {
+  project_id: string;
+  name: string;
+  owner_id?: string | null;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectListResponse {
+  projects: ProjectSummary[];
+}
+
+export interface ProjectForkResponse {
+  project_id: string;
+}
+
+/** Публичный профиль (ответ /auth/google и /auth/me). */
+export interface AuthUser {
+  id: string;
+  email: string;
+  name: string;
+  avatar_url?: string | null;
+}
+
+export interface AuthTokenResponse {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  user: AuthUser;
+}
+
+export async function postAuthGoogle(credential: string): Promise<AuthTokenResponse> {
+  const res = await fetch(`${baseUrl()}/api/v1/auth/google`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ credential }),
+  });
+  return parseJson<AuthTokenResponse>(res);
+}
+
+export async function getAuthMe(): Promise<AuthUser> {
+  const res = await fetch(`${baseUrl()}/api/v1/auth/me`, {
+    headers: { ...authHeader() },
+  });
+  return parseJson<AuthUser>(res);
+}
+
+export async function listMyProjects(): Promise<ProjectListResponse> {
+  const res = await fetch(`${baseUrl()}/api/v1/projects`, {
+    headers: { ...authHeader() },
+  });
+  return parseJson<ProjectListResponse>(res);
 }
 
 export async function getProject(projectId: string): Promise<ProjectRecord> {
   const res = await fetch(
     `${baseUrl()}/api/v1/projects/${encodeURIComponent(projectId)}`,
+    { headers: { ...authHeader() } },
   );
   return parseJson<ProjectRecord>(res);
 }
@@ -150,7 +223,10 @@ export async function postProject(
 ): Promise<ProjectCreateResponse> {
   const res = await fetch(`${baseUrl()}/api/v1/projects`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(),
+    },
     body: JSON.stringify(body),
   });
   return parseJson<ProjectCreateResponse>(res);
@@ -164,9 +240,34 @@ export async function putProject(
     `${baseUrl()}/api/v1/projects/${encodeURIComponent(projectId)}`,
     {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeader(),
+      },
       body: JSON.stringify(body),
     },
   );
   return parseJson<ProjectRecord>(res);
+}
+
+export async function deleteProject(projectId: string): Promise<void> {
+  const res = await fetch(
+    `${baseUrl()}/api/v1/projects/${encodeURIComponent(projectId)}`,
+    {
+      method: "DELETE",
+      headers: { ...authHeader() },
+    },
+  );
+  await parseJson<Record<string, string>>(res);
+}
+
+export async function forkProject(projectId: string): Promise<ProjectForkResponse> {
+  const res = await fetch(
+    `${baseUrl()}/api/v1/projects/${encodeURIComponent(projectId)}/fork`,
+    {
+      method: "POST",
+      headers: { ...authHeader() },
+    },
+  );
+  return parseJson<ProjectForkResponse>(res);
 }

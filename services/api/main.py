@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from redis.asyncio import Redis
 
+from routes.auth import router as auth_router
 from routes.jobs import router as jobs_router
 from routes.projects import router as projects_router
 from storage import build_s3_client, ensure_bucket_exists, get_bucket_name
@@ -57,6 +58,7 @@ app.add_middleware(
 )
 
 app.include_router(jobs_router)
+app.include_router(auth_router)
 app.include_router(projects_router)
 
 

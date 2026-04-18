@@ -16,6 +16,8 @@ type CopilotSidebarProps = {
   pending: boolean;
   hasBlueprintContext: boolean;
   onSend: (text: string) => void;
+  /** Чужой публичный проект или просмотр без входа */
+  readOnly?: boolean;
 };
 
 export function CopilotSidebar({
@@ -24,6 +26,7 @@ export function CopilotSidebar({
   pending,
   hasBlueprintContext,
   onSend,
+  readOnly = false,
 }: CopilotSidebarProps) {
   const [draft, setDraft] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -43,12 +46,17 @@ export function CopilotSidebar({
     setDraft("");
   };
 
-  const inputDisabled = !aiMode || pending;
+  const inputDisabled = !aiMode || pending || readOnly;
 
   return (
     <aside className="flex h-full min-h-0 w-full flex-col border-t border-neutral-800 bg-neutral-950 md:w-[380px] md:border-l md:border-t-0">
       <div className="border-b border-neutral-800 px-3 py-2">
         <h2 className="text-sm font-semibold text-neutral-100">AI Copilot</h2>
+        {readOnly ? (
+          <p className="mt-1 text-[11px] text-amber-200/90">
+            Редактирование недоступно: откройте свой проект или сделайте Fork.
+          </p>
+        ) : null}
         <p className="mt-0.5 text-[11px] text-neutral-500">
           Диалог с Gemini: запросы редактируют Blueprint (Raw, в т.ч.{" "}
           <code className="text-neutral-400">global_variables</code>).

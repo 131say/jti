@@ -40,6 +40,12 @@ def create_project_zip(base_dir: Path, zip_path: Path) -> None:
         if mp4.is_file():
             zf.write(mp4, arcname="simulation/physics_preview.mp4")
 
+        drawings_dir = base_dir / "drawings"
+        if drawings_dir.is_dir():
+            for f in sorted(drawings_dir.iterdir()):
+                if f.is_file() and f.suffix.lower() == ".svg":
+                    zf.write(f, arcname=f"drawings/{f.name}")
+
         parts_dir = base_dir / "parts"
         if parts_dir.is_dir():
             for f in sorted(parts_dir.iterdir()):

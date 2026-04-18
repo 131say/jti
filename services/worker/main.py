@@ -36,6 +36,7 @@ from .generator import (  # noqa: E402
     build_assembly_from_blueprint,
     create_project_zip,
     export_artifacts,
+    export_drawings_to_dir,
     export_individual_parts_to_dir,
 )
 from .storage import (  # noqa: E402
@@ -96,6 +97,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
         list[str],
         dict,
         dict,
+        list[str],
     ]:
         ensure_bucket_exists(s3, bucket)
         job_warnings: list[str] = []
@@ -118,6 +120,26 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             write_bom_csv(base / "bom.csv", bom)
 
             diagnostics = run_engineering_diagnostics(resolved_blueprint, job_warnings)
+
+            drawings_dir = base / "drawings"
+            export_drawings_to_dir(resolved_blueprint, drawings_dir, job_warnings)
+            drawings_keys: list[str] = []
+            for svg_path in sorted(drawings_dir.glob("*.svg")):
+                if not svg_path.is_file():
+                    continue
+                dk = f"{job_id}/drawings/{svg_path.name}"
+                try:
+                    upload_artifact(
+                        s3,
+                        bucket=bucket,
+                        local_path=svg_path,
+                        object_key=dk,
+                    )
+                    drawings_keys.append(dk)
+                except Exception as e:
+                    msg = f"drawings: не удалось загрузить {svg_path.name} в S3: {e!s}"
+                    logger.warning("%s", msg, exc_info=True)
+                    job_warnings.append(msg)
 
             scripts_dir.mkdir(parents=True, exist_ok=True)
             sim_dir.mkdir(parents=True, exist_ok=True)
@@ -172,7 +194,17 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
                 object_key=sk,
             )
             script_key = sk
-        return glb_key, step_key, zip_key, video_key, script_key, job_warnings, bom, diagnostics
+        return (
+            glb_key,
+            step_key,
+            zip_key,
+            video_key,
+            script_key,
+            job_warnings,
+            bom,
+            diagnostics,
+            drawings_keys,
+        )
 
     try:
         await set_job_state(
@@ -180,9 +212,17 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             job_id,
             {"status": "in_progress", "artifacts": None, "error": None},
         )
-        glb_key, step_key, zip_key, video_key, script_key, job_warnings, bom, diagnostics = (
-            await asyncio.to_thread(_upload_sync)
-        )
+        (
+            glb_key,
+            step_key,
+            zip_key,
+            video_key,
+            script_key,
+            job_warnings,
+            bom,
+            diagnostics,
+            drawings_keys,
+        ) = await asyncio.to_thread(_upload_sync)
         artifacts: dict = {
             "glb_key": glb_key,
             "step_key": step_key,
@@ -192,6 +232,8 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             artifacts["video_key"] = video_key
         if script_key:
             artifacts["script_key"] = script_key
+        if drawings_keys:
+            artifacts["drawings_keys"] = drawings_keys
         await set_job_state(
             redis,
             job_id,

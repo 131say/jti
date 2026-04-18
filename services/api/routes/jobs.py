@@ -168,6 +168,13 @@ async def get_job(job_id: str, request: Request) -> JobStatusResponse:
                 script_url = presigned_get_url(
                     s3, bucket=bucket, key=art["script_key"]
                 )
+            drawings_urls = None
+            raw_dk = art.get("drawings_keys")
+            if isinstance(raw_dk, list) and raw_dk:
+                drawings_urls = [
+                    presigned_get_url(s3, bucket=bucket, key=str(k))
+                    for k in raw_dk
+                ]
             artifacts = JobArtifacts(
                 glb_url=presigned_get_url(
                     s3, bucket=bucket, key=art["glb_key"]
@@ -179,6 +186,7 @@ async def get_job(job_id: str, request: Request) -> JobStatusResponse:
                 zip_url=zip_url,
                 video_url=video_url,
                 script_url=script_url,
+                drawings_urls=drawings_urls,
             )
         elif "glb_url" in art and "step_url" in art:
             artifacts = JobArtifacts(**art)
