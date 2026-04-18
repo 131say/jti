@@ -64,6 +64,7 @@ function cloudArtifactsFromLast(
     video_url: la.video_url,
     script_url: la.script_url,
     drawings_urls: la.drawings_urls ?? undefined,
+    pdf_url: la.pdf_url ?? undefined,
   };
 }
 
@@ -335,6 +336,7 @@ function HomePageInner() {
       video_url: a.video_url ?? undefined,
       script_url: a.script_url ?? undefined,
       drawings_urls: a.drawings_urls ?? undefined,
+      pdf_url: a.pdf_url ?? undefined,
       bom: b ?? undefined,
     };
   }, [jobDisplay, artifacts, cloudArtifacts, bom, cloudBom]);
@@ -742,6 +744,7 @@ function HomePageInner() {
                   bom={displayBom}
                   zipUrl={zipUrlForViewer}
                   drawingsUrls={displayArtifacts?.drawings_urls ?? null}
+                  pdfUrl={displayArtifacts?.pdf_url ?? null}
                   diagnostics={
                     jobDisplay ? diagnostics : null
                   }

@@ -34,6 +34,7 @@ import {
 import { useExplodedView } from "@/hooks/useExplodedView";
 
 import { BomTable } from "@/components/viewer/BomTable";
+import { AssemblyGuidePanel } from "@/components/viewer/AssemblyGuidePanel";
 import { DrawingsViewer } from "@/components/viewer/DrawingsViewer";
 import { DiagnosticsPanel } from "@/components/viewer/DiagnosticsPanel";
 import { JointGizmos } from "@/components/viewer/JointGizmos";
@@ -278,6 +279,7 @@ export function ModelViewer({
   bom,
   zipUrl,
   drawingsUrls,
+  pdfUrl,
   diagnostics,
   onLoaded,
 }: {
@@ -288,6 +290,8 @@ export function ModelViewer({
   zipUrl?: string | null;
   /** Presigned URL SVG 2D-превью (по одному на вид). */
   drawingsUrls?: string[] | null;
+  /** Presigned URL PDF инструкции по сборке. */
+  pdfUrl?: string | null;
   /** Результаты DFM с воркера. */
   diagnostics?: JobDiagnostics | null;
   onLoaded?: () => void;
@@ -307,7 +311,7 @@ export function ModelViewer({
     PartMetricEntry
   > | null>(null);
   const [viewerTab, setViewerTab] = useState<
-    "scene" | "bom" | "diagnostics" | "drawings"
+    "scene" | "bom" | "diagnostics" | "drawings" | "guide"
   >("scene");
   const [diagnosticHighlightIds, setDiagnosticHighlightIds] = useState<
     string[] | null
@@ -319,6 +323,7 @@ export function ModelViewer({
   const hasBomPanel = Boolean(bom != null || zipUrl);
   const hasDiagnosticsPanel = diagnostics != null;
   const hasDrawingsPanel = Boolean(drawingsUrls?.length);
+  const hasGuidePanel = Boolean(pdfUrl);
 
   useEffect(() => {
     setSelectedPartId(null);
@@ -385,16 +390,21 @@ export function ModelViewer({
 
   const useTabs =
     (showInspector &&
-      (hasBomPanel || hasDiagnosticsPanel || hasDrawingsPanel)) ||
+      (hasBomPanel ||
+        hasDiagnosticsPanel ||
+        hasDrawingsPanel ||
+        hasGuidePanel)) ||
     (!showInspector &&
       hasDrawingsPanel &&
-      (hasBomPanel || hasDiagnosticsPanel));
+      (hasBomPanel || hasDiagnosticsPanel)) ||
+    (!showInspector && hasGuidePanel);
 
   const showBottomPanel =
     showInspector ||
     hasBomPanel ||
     hasDiagnosticsPanel ||
-    hasDrawingsPanel;
+    hasDrawingsPanel ||
+    hasGuidePanel;
 
   const onDiagnosticSelectCheck = useCallback(
     (index: number | null, partIds: string[]) => {
@@ -524,6 +534,25 @@ export function ModelViewer({
                   Чертежи (2D)
                 </button>
               ) : null}
+              {hasGuidePanel ? (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={viewerTab === "guide"}
+                  onClick={() => {
+                    setViewerTab("guide");
+                    setDiagnosticHighlightIds(null);
+                    setDiagnosticSelectedIndex(null);
+                  }}
+                  className={`px-3 py-2 text-[11px] font-medium transition-colors ${
+                    viewerTab === "guide"
+                      ? "border-b-2 border-neutral-200 text-neutral-100"
+                      : "text-neutral-500 hover:text-neutral-300"
+                  }`}
+                >
+                  Инструкции
+                </button>
+              ) : null}
             </div>
           ) : null}
           <div className="min-h-0 flex-1 overflow-auto p-2">
@@ -591,6 +620,9 @@ export function ModelViewer({
                 zipUrl={zipUrl ?? null}
               />
             ) : null}
+            {useTabs && hasGuidePanel && viewerTab === "guide" && pdfUrl ? (
+              <AssemblyGuidePanel pdfUrl={pdfUrl} />
+            ) : null}
             {!useTabs && !showInspector && hasBomPanel ? (
               <BomTable bom={bom ?? null} zipUrl={zipUrl ?? null} />
             ) : null}
@@ -606,6 +638,9 @@ export function ModelViewer({
                 urls={drawingsUrls ?? []}
                 zipUrl={zipUrl ?? null}
               />
+            ) : null}
+            {!useTabs && !showInspector && hasGuidePanel && pdfUrl ? (
+              <AssemblyGuidePanel pdfUrl={pdfUrl} />
             ) : null}
           </div>
         </div>

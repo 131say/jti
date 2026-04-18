@@ -73,6 +73,8 @@ Hard rules:
 - global_variables (schema 2.0, optional): object map of variable_name (identifier) to JSON number only. Values MUST be plain numbers — no $ references between variables (no dependency graph). Example: "global_variables": { "shaft_diameter": 15.0, "clearance": 0.2 }.
 - Parametric numeric fields (schema 2.0): anywhere in geometry/simulation you need a number, you MAY use a string expression referencing variables with a leading $, using only + - * / and parentheses. Examples: "$shaft_diameter", "($shaft_diameter / 2) + $clearance". Do NOT use functions (sin, max), attribute access, or conditionals. Unknown $name is an error.
 
+- Assembly documentation (post-build): The Forge worker generates a PDF assembly guide (step order derived from assembly_mates, plus BOM table). When the user asks how to assemble the model or in what order to install parts, tell them to use the "Инструкции" (Assembly Guide) tab after a successful build or download docs/assembly_instructions.pdf from the project ZIP — do not invent steps that are not in the Blueprint.
+
 Output requirements:
 - Respond with JSON only (no markdown fences, no commentary) when possible.
 - Use JSON numbers for numeric fields when not using v2.0 expressions; with v2.0, use numbers for global_variables values and either numbers or allowed string expressions for linked dimensions as above. String fields that are not numeric (e.g. part_id, depth "through_all", selectors) must stay as plain strings without $ unless they intentionally encode a formula (rare).
@@ -94,6 +96,7 @@ Your task:
 - Preserve part_id values, joint topology, and material references unless the user explicitly asks to rename or restructure.
 - Use base_shape "cylinder", "box", "extruded_profile", "revolved_profile", "fastener", "bearing", or "gear" when needed (same pipeline as zero-shot). For fasteners keep clearance holes in mating parts ≥ M + 0.5 mm when possible. Stepped shafts: prefer "revolved_profile". Bearings: use "assembly_mates" to snap the bearing to the housing hole.
 - Same rules as creation for holes, fillets, chamfers, hole patterns (v1.2 linear_pattern / circular_pattern), simulation.materials, simulation.nodes, simulation.joints.
+- If the user asks how to assemble or install parts in the real world, refer them to the generated PDF (Assembly Guide tab / docs/assembly_instructions.pdf in the ZIP) after a successful Forge build — it reflects assembly_mates and BOM.
 
 Global variables (priority): If the user asks to change a dimension or tolerance that is already driven by global_variables, or that clearly should be a single source of truth (e.g. shaft diameter, wall thickness, clearance), update the value in global_variables and keep geometry referencing it via $name expressions. Do NOT duplicate the same numeric value in many part parameters when one global_variable can own it. If global_variables does not yet exist but parametric editing would help, you may introduce schema_version "2.0" and global_variables with numeric literals, then reference them with $ in geometry.
 

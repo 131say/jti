@@ -7,6 +7,7 @@ import copy
 import json
 import logging
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -34,6 +35,7 @@ from .core.bom import build_bom_from_blueprint, write_bom_csv  # noqa: E402
 from .core.diagnostics import run_engineering_diagnostics  # noqa: E402
 from .core.mjcf_gen import build_mjcf_xml  # noqa: E402
 from .core.simulation import run_headless_simulation  # noqa: E402
+from .core.pdf_generator import generate_assembly_instructions_pdf  # noqa: E402
 from .core.python_exporter import generate_python_script  # noqa: E402
 from .generator import (  # noqa: E402
     BlueprintGenerationError,
@@ -118,6 +120,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
         dict,
         dict,
         list[str],
+        str | None,
     ]:
         ensure_bucket_exists(s3, bucket)
         job_warnings: list[str] = []
@@ -125,6 +128,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
         assembly = build_assembly_from_blueprint(resolved_blueprint, job_warnings)
         video_key: str | None = None
         script_key: str | None = None
+        pdf_key: str | None = None
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp)
             assembly_dir = base / "assembly"
@@ -198,6 +202,30 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
                         logger.warning("%s", msg, exc_info=True)
                         job_warnings.append(msg)
 
+            docs_dir = base / "docs"
+            docs_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                shutil.copy(base / "bom.csv", docs_dir / "bom.csv")
+                pdf_out = docs_dir / "assembly_instructions.pdf"
+                generate_assembly_instructions_pdf(
+                    pdf_out,
+                    resolved_blueprint,
+                    bom,
+                    step_warnings=job_warnings,
+                )
+                pk = f"{job_id}/assembly_instructions.pdf"
+                upload_artifact(
+                    s3,
+                    bucket=bucket,
+                    local_path=pdf_out,
+                    object_key=pk,
+                )
+                pdf_key = pk
+            except Exception as e:
+                msg = f"assembly PDF: не удалось сгенерировать или загрузить: {e!s}"
+                logger.warning("%s", msg, exc_info=True)
+                job_warnings.append(msg)
+
             zip_path = base / "project.zip"
             create_project_zip(base, zip_path)
 
@@ -225,6 +253,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             bom,
             diagnostics,
             drawings_keys,
+            pdf_key,
         )
 
     try:
@@ -243,6 +272,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             bom,
             diagnostics,
             drawings_keys,
+            pdf_key,
         ) = await asyncio.to_thread(_upload_sync)
         artifacts: dict = {
             "glb_key": glb_key,
@@ -255,6 +285,8 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
             artifacts["script_key"] = script_key
         if drawings_keys:
             artifacts["drawings_keys"] = drawings_keys
+        if pdf_key:
+            artifacts["pdf_key"] = pdf_key
         await set_job_state(
             redis,
             job_id,

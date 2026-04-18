@@ -22,6 +22,8 @@ export interface JobArtifacts {
   script_url?: string | null;
   /** Presigned GET на SVG 2D-превью (по одному на вид). */
   drawings_urls?: string[] | null;
+  /** Presigned GET на PDF инструкции по сборке. */
+  pdf_url?: string | null;
 }
 
 export interface JobBomPart {
@@ -124,6 +126,7 @@ export interface ProjectLastArtifacts {
   script_url?: string | null;
   bom?: JobBom | null;
   drawings_urls?: string[] | null;
+  pdf_url?: string | null;
 }
 
 export interface ProjectRecord {

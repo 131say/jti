@@ -51,3 +51,9 @@ def create_project_zip(base_dir: Path, zip_path: Path) -> None:
             for f in sorted(parts_dir.iterdir()):
                 if f.is_file() and f.suffix.lower() in (".stl", ".step"):
                     zf.write(f, arcname=f"parts/{f.name}")
+
+        docs_dir = base_dir / "docs"
+        if docs_dir.is_dir():
+            for f in sorted(docs_dir.iterdir()):
+                if f.is_file():
+                    zf.write(f, arcname=f"docs/{f.name}")

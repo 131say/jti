@@ -35,6 +35,9 @@ class TestZipPackage(unittest.TestCase):
             (base / "simulation" / "physics_preview.mp4").write_bytes(b"mp4")
             (base / "drawings").mkdir(exist_ok=True)
             (base / "drawings" / "part_a_iso.svg").write_text("<svg/>", encoding="utf-8")
+            (base / "docs").mkdir(exist_ok=True)
+            (base / "docs" / "assembly_instructions.pdf").write_bytes(b"%PDF-1.4 mock")
+            (base / "docs" / "bom.csv").write_text("part_id,material\n", encoding="utf-8")
             zpath = base / "project.zip"
             create_project_zip(base, zpath)
             self.assertTrue(zpath.is_file())
@@ -53,6 +56,8 @@ class TestZipPackage(unittest.TestCase):
                     "parts/a.step",
                     "parts/b.stl",
                     "drawings/part_a_iso.svg",
+                    "docs/assembly_instructions.pdf",
+                    "docs/bom.csv",
                 },
             )
 

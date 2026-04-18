@@ -446,6 +446,10 @@ class JobArtifacts(BaseModel):
         default=None,
         description="Presigned GET на SVG-превью (по одному на вид).",
     )
+    pdf_url: str | None = Field(
+        default=None,
+        description="Presigned GET на PDF инструкции по сборке (assembly_instructions.pdf).",
+    )
 
 
 class JobBomPart(BaseModel):
@@ -514,6 +518,7 @@ class ProjectLastArtifacts(BaseModel):
     script_url: str | None = None
     bom: JobBom | None = None
     drawings_urls: list[str] | None = None
+    pdf_url: str | None = None
 
 
 class ProjectRecord(BaseModel):
