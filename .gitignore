@@ -1,0 +1,12 @@
+.venv/
+**/__pycache__/
+*.py[cod]
+node_modules/
+.next/
+dist/
+
+# Secrets (шаблоны *.example в репозитории остаются)
+.env
+.env.local
+apps/web/.env.local
+services/.env

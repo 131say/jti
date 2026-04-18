@@ -1,0 +1,47 @@
+{
+  "metadata": {
+    "project_id": "demo_custom_bracket",
+    "schema_version": "1.3"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "l_bracket",
+        "base_shape": "extruded_profile",
+        "parameters": {
+          "points": [
+            [0, 0],
+            [50, 0],
+            [50, 10],
+            [10, 10],
+            [10, 50],
+            [0, 50]
+          ],
+          "height": 20
+        },
+        "material": "aluminum_6061",
+        "operations": []
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "alum",
+        "density": 2700,
+        "friction": 0.3
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "l_bracket",
+        "mat_id": "alum"
+      }
+    ],
+    "joints": []
+  }
+}

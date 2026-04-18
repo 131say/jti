@@ -1,0 +1,99 @@
+{
+  "metadata": {
+    "project_id": "demo_fillets_materials",
+    "schema_version": "1.1"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "piston_head",
+        "base_shape": "cylinder",
+        "material": "aluminum_6061",
+        "visual": {
+          "color": "#A5A9B4",
+          "roughness": 0.4
+        },
+        "parameters": {
+          "radius": 20,
+          "height": 30
+        },
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 10,
+            "depth": "through_all",
+            "position": [0, 0, 15],
+            "direction": [1, 0, 0]
+          },
+          {
+            "type": "fillet",
+            "radius": 1.5,
+            "selector": "ALL"
+          }
+        ]
+      },
+      {
+        "part_id": "con_rod",
+        "base_shape": "box",
+        "material": "steel",
+        "parameters": {
+          "length": 10,
+          "width": 15,
+          "height": 100
+        },
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 8,
+            "depth": "through_all",
+            "position": [0, 0, 90],
+            "direction": [1, 0, 0]
+          },
+          {
+            "type": "chamfer",
+            "length": 1.5,
+            "selector": "|Z"
+          }
+        ]
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "alum",
+        "density": 2700,
+        "friction": 0.38
+      },
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "piston_head",
+        "mat_id": "alum"
+      },
+      {
+        "part_id": "con_rod",
+        "mat_id": "steel"
+      }
+    ],
+    "joints": [
+      {
+        "joint_id": "piston_pin",
+        "type": "hinge",
+        "parent_part": "con_rod",
+        "child_part": "piston_head",
+        "anchor_point": [0, 0, 15],
+        "axis": [1, 0, 0]
+      }
+    ]
+  }
+}

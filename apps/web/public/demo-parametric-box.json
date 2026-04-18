@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "project_id": "demo_parametric_box",
+    "schema_version": "2.0"
+  },
+  "global_variables": {
+    "base_width": 100.0,
+    "hole_margin": 15.0
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "plate",
+        "base_shape": "box",
+        "material": "steel",
+        "parameters": {
+          "length": "$base_width",
+          "width": "($base_width / 2) + 10",
+          "height": 20
+        },
+        "operations": []
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "plate",
+        "mat_id": "steel"
+      }
+    ],
+    "joints": []
+  }
+}

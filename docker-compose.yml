@@ -1,0 +1,75 @@
+# Локальная оркестрация AI-Forge: инфраструктура + заглушки приложений.
+# Инфраструктура: docker compose up -d
+# Заглушки api/web (sleep — только чтобы сервисы были валидны для compose): docker compose --profile apps up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aiforge
+      POSTGRES_PASSWORD: aiforge
+      POSTGRES_DB: aiforge
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aiforge -d aiforge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: aiforge
+      MINIO_ROOT_PASSWORD: aiforge_secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Заглушки: объявление сервисов без запуска приложения (uvicorn/next — позже).
+  api:
+    profiles: ["apps"]
+    image: python:3.12-slim
+    working_dir: /app
+    volumes:
+      - ./services/api:/app
+    environment:
+      PYTHONUNBUFFERED: "1"
+    # Техническая заглушка, чтобы контейнер не завершался сразу (команда приложения будет позже).
+    command: ["sleep", "infinity"]
+
+  web:
+    profiles: ["apps"]
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./apps/web:/app
+    environment:
+      NODE_ENV: development
+    ports:
+      - "3000:3000"
+    command: ["sleep", "infinity"]
+
+volumes:
+  postgres_data:
+  minio_data:

@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "project_id": "piston_assembly_001",
+    "schema_version": "1.0"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "piston_head",
+        "base_shape": "cylinder",
+        "parameters": {
+          "radius": 20,
+          "height": 30
+        },
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 10,
+            "depth": "through_all",
+            "position": [0, 0, 15],
+            "direction": [1, 0, 0]
+          }
+        ]
+      },
+      {
+        "part_id": "con_rod",
+        "base_shape": "box",
+        "parameters": {
+          "length": 10,
+          "width": 15,
+          "height": 100
+        },
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 10,
+            "depth": "through_all",
+            "position": [0, 0, 90],
+            "direction": [1, 0, 0]
+          }
+        ]
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "alum",
+        "density": 2700,
+        "friction": 0.3
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "piston_head",
+        "mat_id": "alum"
+      },
+      {
+        "part_id": "con_rod",
+        "mat_id": "alum"
+      }
+    ],
+    "joints": [
+      {
+        "joint_id": "piston_pin",
+        "type": "hinge",
+        "parent_part": "con_rod",
+        "child_part": "piston_head",
+        "anchor_point": [0, 0, 15],
+        "axis": [1, 0, 0]
+      }
+    ]
+  }
+}

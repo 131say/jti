@@ -1,0 +1,49 @@
+{
+  "metadata": {
+    "project_id": "demo_revolve_pulley",
+    "schema_version": "1.4"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "pulley_wheel",
+        "base_shape": "revolved_profile",
+        "material": "steel",
+        "parameters": {
+          "points": [
+            [0, 0],
+            [20, 0],
+            [20, 10],
+            [15, 10],
+            [15, 20],
+            [20, 20],
+            [20, 30],
+            [0, 30]
+          ],
+          "angle": 360
+        },
+        "operations": []
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "pulley_wheel",
+        "mat_id": "steel"
+      }
+    ],
+    "joints": []
+  }
+}

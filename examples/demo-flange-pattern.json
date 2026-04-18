@@ -1,0 +1,56 @@
+{
+  "metadata": {
+    "project_id": "demo_flange_pattern",
+    "schema_version": "1.2"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "flange_plate",
+        "base_shape": "box",
+        "parameters": {
+          "length": 80,
+          "width": 80,
+          "height": 10
+        },
+        "material": "aluminum_6061",
+        "operations": [
+          {
+            "type": "circular_pattern",
+            "center": [0, 0, 0],
+            "radius": 25,
+            "count": 6,
+            "angle": 360,
+            "operation": {
+              "type": "hole",
+              "diameter": 5,
+              "position": [0, 0, 0],
+              "direction": [0, 0, -1],
+              "depth": "through_all"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "alum",
+        "density": 2700,
+        "friction": 0.3
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "flange_plate",
+        "mat_id": "alum"
+      }
+    ],
+    "joints": []
+  }
+}
