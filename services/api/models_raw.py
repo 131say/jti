@@ -94,6 +94,15 @@ RawPartOperation = Annotated[
 ]
 
 
+class RawGeometryPartMaterialFields(GeometryPartMaterialFields):
+    """Как GeometryPartMaterialFields, но position/rotation допускают $-выражения."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    position: Tuple3Expr | None = None
+    rotation: Tuple3Expr | None = None
+
+
 # --- Параметры деталей ---
 
 
@@ -132,7 +141,16 @@ class RawRevolvedProfileParams(BaseModel):
     angle: NumExpr
 
 
-class RawGeometryPartCylinder(GeometryPartMaterialFields):
+class RawFastenerParams(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["bolt_hex", "nut_hex", "washer"]
+    size: Literal["M6", "M8", "M10", "M12"]
+    length: NumExpr | None = None
+    fit: Literal["clearance", "tight"] = "clearance"
+
+
+class RawGeometryPartCylinder(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -141,7 +159,7 @@ class RawGeometryPartCylinder(GeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
-class RawGeometryPartBox(GeometryPartMaterialFields):
+class RawGeometryPartBox(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -150,7 +168,7 @@ class RawGeometryPartBox(GeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
-class RawGeometryPartSphere(GeometryPartMaterialFields):
+class RawGeometryPartSphere(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -159,7 +177,7 @@ class RawGeometryPartSphere(GeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
-class RawGeometryPartExtrudedProfile(GeometryPartMaterialFields):
+class RawGeometryPartExtrudedProfile(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -168,7 +186,7 @@ class RawGeometryPartExtrudedProfile(GeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
-class RawGeometryPartRevolvedProfile(GeometryPartMaterialFields):
+class RawGeometryPartRevolvedProfile(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -177,7 +195,16 @@ class RawGeometryPartRevolvedProfile(GeometryPartMaterialFields):
     operations: list[RawPartOperation]
 
 
-class RawGeometryPartCustomProfile(GeometryPartMaterialFields):
+class RawGeometryPartFastener(RawGeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["fastener"]
+    parameters: RawFastenerParams
+    operations: list[RawPartOperation]
+
+
+class RawGeometryPartCustomProfile(RawGeometryPartMaterialFields):
     model_config = ConfigDict(extra="forbid")
 
     part_id: str = Field(min_length=1)
@@ -200,6 +227,7 @@ RawGeometryPart = Annotated[
         RawGeometryPartSphere,
         RawGeometryPartExtrudedProfile,
         RawGeometryPartRevolvedProfile,
+        RawGeometryPartFastener,
         RawGeometryPartCustomProfile,
     ],
     Field(discriminator="base_shape"),

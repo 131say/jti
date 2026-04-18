@@ -1,0 +1,111 @@
+{
+  "metadata": {
+    "project_id": "demo_fastener",
+    "schema_version": "2.1"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "plate_bottom",
+        "base_shape": "box",
+        "material": "steel",
+        "parameters": {
+          "length": 50,
+          "width": 40,
+          "height": 8
+        },
+        "position": [0, 0, 4],
+        "rotation": [0, 0, 0],
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 8.5,
+            "depth": "through_all",
+            "position": [0, 0, 0],
+            "direction": [0, 0, 1]
+          }
+        ]
+      },
+      {
+        "part_id": "plate_top",
+        "base_shape": "box",
+        "material": "steel",
+        "parameters": {
+          "length": 50,
+          "width": 40,
+          "height": 8
+        },
+        "position": [0, 0, 12],
+        "rotation": [0, 0, 0],
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 8.5,
+            "depth": "through_all",
+            "position": [0, 0, 0],
+            "direction": [0, 0, 1]
+          }
+        ]
+      },
+      {
+        "part_id": "bolt_m8",
+        "base_shape": "fastener",
+        "material": "steel",
+        "parameters": {
+          "type": "bolt_hex",
+          "size": "M8",
+          "length": 28,
+          "fit": "clearance"
+        },
+        "operations": [],
+        "position": [0, 0, 0],
+        "rotation": [0, 0, 0]
+      },
+      {
+        "part_id": "nut_m8",
+        "base_shape": "fastener",
+        "material": "steel",
+        "parameters": {
+          "type": "nut_hex",
+          "size": "M8",
+          "fit": "clearance"
+        },
+        "operations": [],
+        "position": [0, 0, 16],
+        "rotation": [0, 0, 0]
+      }
+    ]
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "plate_bottom",
+        "mat_id": "steel"
+      },
+      {
+        "part_id": "plate_top",
+        "mat_id": "steel"
+      },
+      {
+        "part_id": "bolt_m8",
+        "mat_id": "steel"
+      },
+      {
+        "part_id": "nut_m8",
+        "mat_id": "steel"
+      }
+    ],
+    "joints": []
+  }
+}

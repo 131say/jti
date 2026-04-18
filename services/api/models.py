@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # --- Metadata & global ---
 
@@ -13,7 +13,7 @@ class BlueprintMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     project_id: str = Field(min_length=1)
-    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "2.0"]
+    schema_version: Literal["1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1"]
 
 
 class GlobalSettings(BaseModel):
@@ -123,6 +123,14 @@ class GeometryPartMaterialFields(BaseModel):
         description="Ключ пресета (steel, aluminum_6061, abs_plastic, rubber) — плотность/трение/цвет.",
     )
     visual: MaterialVisual | None = None
+    position: tuple[float, float, float] | None = Field(
+        default=None,
+        description="Смещение детали в сборке (мм).",
+    )
+    rotation: tuple[float, float, float] | None = Field(
+        default=None,
+        description="Поворот в сборке (градусы), как cq.Rot(x,y,z).",
+    )
 
 
 # --- Geometry: parts (discriminated by base_shape) ---
@@ -194,6 +202,27 @@ class GeometryPartExtrudedProfile(GeometryPartMaterialFields):
     operations: list[PartOperation]
 
 
+class FastenerParams(BaseModel):
+    """Параметры стандартного метиза (без моделирования резьбы)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["bolt_hex", "nut_hex", "washer"]
+    size: Literal["M6", "M8", "M10", "M12"]
+    length: float | None = Field(
+        default=None,
+        description="Длина стержня болта (мм), только для bolt_hex.",
+    )
+    fit: Literal["clearance", "tight"] = "clearance"
+
+    @model_validator(mode="after")
+    def _validate_bolt_length(self) -> FastenerParams:
+        if self.type == "bolt_hex":
+            if self.length is None or self.length <= 0:
+                raise ValueError("bolt_hex: parameters.length обязателен и > 0")
+        return self
+
+
 class RevolvedProfileParams(BaseModel):
     """
     Сечение в плоскости XZ: первая координата — расстояние от оси вращения Y (>= 0),
@@ -212,6 +241,15 @@ class GeometryPartRevolvedProfile(GeometryPartMaterialFields):
     part_id: str = Field(min_length=1)
     base_shape: Literal["revolved_profile"]
     parameters: RevolvedProfileParams
+    operations: list[PartOperation]
+
+
+class GeometryPartFastener(GeometryPartMaterialFields):
+    model_config = ConfigDict(extra="forbid")
+
+    part_id: str = Field(min_length=1)
+    base_shape: Literal["fastener"]
+    parameters: FastenerParams
     operations: list[PartOperation]
 
 
@@ -238,6 +276,7 @@ GeometryPart = Annotated[
         GeometryPartSphere,
         GeometryPartExtrudedProfile,
         GeometryPartRevolvedProfile,
+        GeometryPartFastener,
         GeometryPartCustomProfile,
     ],
     Field(discriminator="base_shape"),
@@ -330,6 +369,10 @@ class JobArtifacts(BaseModel):
     zip_url: str | None = None
     video_url: str | None = Field(default=None)
     script_url: str | None = Field(default=None)
+    drawings_urls: list[str] | None = Field(
+        default=None,
+        description="Presigned GET на SVG-превью (по одному на вид).",
+    )
 
 
 class JobBomPart(BaseModel):
@@ -340,6 +383,8 @@ class JobBomPart(BaseModel):
     mass_g: float
     volume_cm3: float
     cost_usd: float
+    item_type: Literal["manufactured", "purchased"] = "manufactured"
+    catalog_label: str | None = None
 
 
 class JobBom(BaseModel):
@@ -395,6 +440,7 @@ class ProjectLastArtifacts(BaseModel):
     video_url: str | None = None
     script_url: str | None = None
     bom: JobBom | None = None
+    drawings_urls: list[str] | None = None
 
 
 class ProjectRecord(BaseModel):
@@ -403,6 +449,8 @@ class ProjectRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     project_id: str
+    owner_id: str | None = None
+    is_public: bool = False
     name: str
     version: Literal["2.0"] = "2.0"
     blueprint: dict[str, Any]
@@ -429,3 +477,47 @@ class ProjectUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=256)
     blueprint: dict[str, Any] | None = None
     last_artifacts: ProjectLastArtifacts | None = None
+    is_public: bool | None = None
+
+
+class ProjectSummary(BaseModel):
+    """Элемент списка «Мои проекты»."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_id: str
+    name: str
+    owner_id: str | None = None
+    is_public: bool = False
+    created_at: str
+    updated_at: str
+
+
+class ProjectListResponse(BaseModel):
+    projects: list[ProjectSummary]
+
+
+class ProjectForkResponse(BaseModel):
+    project_id: str
+
+
+class AuthUserPublic(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    email: str
+    name: str
+    avatar_url: str | None = None
+
+
+class AuthTokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    user: AuthUserPublic
+
+
+class GoogleAuthRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    credential: str = Field(min_length=10, description="Google ID token (JWT string)")
