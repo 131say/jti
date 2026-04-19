@@ -274,3 +274,23 @@ export async function forkProject(projectId: string): Promise<ProjectForkRespons
   );
   return parseJson<ProjectForkResponse>(res);
 }
+
+// --- Leads (публичный waitlist / feedback, без JWT) ---
+
+export type LeadIntent = "hobby" | "startup" | "enterprise";
+
+export interface LeadCreateBody {
+  email: string;
+  source: string;
+  intent: LeadIntent;
+  message?: string;
+}
+
+export async function postLead(body: LeadCreateBody): Promise<{ ok: boolean }> {
+  const res = await fetch(`${baseUrl()}/api/v1/leads`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return parseJson<{ ok: boolean }>(res);
+}

@@ -2,19 +2,25 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { LeadWaitlistSection } from "@/components/LeadWaitlistSection";
 import { LoginModal } from "@/components/LoginModal";
 import { useAuth } from "@/context/AuthContext";
 
 import { LIVE_DEMO_PROJECT_SLUG } from "@/lib/demo";
+import { track } from "@/lib/track";
 
 export function LandingPage() {
   const router = useRouter();
   const { user, ready } = useAuth();
   const [loginOpen, setLoginOpen] = useState(false);
 
-  const onStartDesign = useCallback(() => {
+  useEffect(() => {
+    track("landing_page_viewed", {});
+  }, []);
+
+  const goWorkspaceOrLogin = useCallback(() => {
     if (!ready) return;
     if (user) {
       router.push("/dashboard");
@@ -23,9 +29,15 @@ export function LandingPage() {
     }
   }, [ready, user, router]);
 
+  const onStartDesign = useCallback(() => {
+    track("cta_start_forging_clicked", { surface: "landing_hero" });
+    goWorkspaceOrLogin();
+  }, [goWorkspaceOrLogin]);
+
   const onStartFree = useCallback(() => {
-    onStartDesign();
-  }, [onStartDesign]);
+    track("cta_start_forging_clicked", { surface: "landing_final_cta" });
+    goWorkspaceOrLogin();
+  }, [goWorkspaceOrLogin]);
 
   const onLoggedIn = useCallback(() => {
     setLoginOpen(false);
@@ -96,6 +108,14 @@ export function LandingPage() {
             </button>
             <Link
               href={demoHref}
+              onClick={() => {
+                track("live_demo_opened", { surface: "landing_hero" });
+                try {
+                  sessionStorage.setItem("jti_live_demo_from_landing", "1");
+                } catch {
+                  /* ignore */
+                }
+              }}
               className="inline-flex items-center rounded-lg border border-neutral-600 bg-neutral-900/80 px-6 py-3 text-sm font-medium text-neutral-100 hover:border-neutral-500 hover:bg-neutral-800"
             >
               ▶️ Смотреть демо
@@ -311,6 +331,16 @@ export function LandingPage() {
             </p>
             <Link
               href={demoHref}
+              onClick={() => {
+                track("live_demo_opened", {
+                  surface: "landing_demo_section",
+                });
+                try {
+                  sessionStorage.setItem("jti_live_demo_from_landing", "1");
+                } catch {
+                  /* ignore */
+                }
+              }}
               className="mt-6 inline-flex items-center justify-center rounded-xl border border-sky-500/50 bg-sky-950/40 px-8 py-4 text-base font-semibold text-sky-100 transition hover:bg-sky-900/50"
             >
               👉 ▶️ Открыть демо проект
@@ -342,6 +372,8 @@ export function LandingPage() {
             </button>
           </div>
         </section>
+
+        <LeadWaitlistSection />
       </main>
 
       <footer className="border-t border-neutral-800 py-10">

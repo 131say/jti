@@ -16,6 +16,7 @@ import { CodeViewerModal } from "@/components/CodeViewerModal";
 import { DemoOnboardingOverlay } from "@/components/DemoOnboardingOverlay";
 import { LoginModal } from "@/components/LoginModal";
 import { ParametricPanel } from "@/components/ParametricPanel";
+import { ProFeedbackModal } from "@/components/ProFeedbackModal";
 import { ProjectTopBar } from "@/components/ProjectTopBar";
 import { useAuth } from "@/context/AuthContext";
 import { ModelViewer } from "@/components/viewer/ModelViewer";
@@ -33,6 +34,7 @@ import {
   type ProjectRecord,
 } from "@/lib/api";
 import { LIVE_DEMO_PROJECT_SLUG } from "@/lib/demo";
+import { track } from "@/lib/track";
 
 /** Минимальная проверка «похоже на Blueprint v1» для прикрепления к промпту. */
 function tryParseBlueprintJson(text: string): object | null {
@@ -108,6 +110,7 @@ function EditorAppInner() {
   );
   const [publicBusy, setPublicBusy] = useState(false);
   const [forkBusy, setForkBusy] = useState(false);
+  const [proFeedbackOpen, setProFeedbackOpen] = useState(false);
 
   const { user, logout } = useAuth();
 
@@ -128,6 +131,9 @@ function EditorAppInner() {
 
   const loadedIdRef = useRef<string | null>(null);
   const demoLoadedRef = useRef(false);
+  const seenGlbForFirstRenderRef = useRef<string | null>(null);
+  const demo60sTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const demo60sTrackedRef = useRef(false);
 
   const {
     present,
@@ -336,6 +342,52 @@ function EditorAppInner() {
   }, [projectIdParam, reset, user?.id]);
 
   useEffect(() => {
+    if (!isLiveDemo) return;
+    let fromLanding = false;
+    try {
+      fromLanding =
+        typeof window !== "undefined" &&
+        sessionStorage.getItem("jti_live_demo_from_landing") === "1";
+      if (fromLanding) {
+        sessionStorage.removeItem("jti_live_demo_from_landing");
+      }
+    } catch {
+      /* ignore */
+    }
+    if (!fromLanding) {
+      track("live_demo_opened", { surface: "editor_direct" });
+    }
+  }, [isLiveDemo]);
+
+  useEffect(() => {
+    if (!isLiveDemo || projectLoadStatus !== "ready") {
+      if (demo60sTimerRef.current) {
+        clearTimeout(demo60sTimerRef.current);
+        demo60sTimerRef.current = null;
+      }
+      return;
+    }
+    demo60sTrackedRef.current = false;
+    if (demo60sTimerRef.current) clearTimeout(demo60sTimerRef.current);
+    demo60sTimerRef.current = setTimeout(() => {
+      if (!demo60sTrackedRef.current) {
+        demo60sTrackedRef.current = true;
+        track("time_in_demo_gt_60s", {});
+      }
+    }, 60_000);
+    return () => {
+      if (demo60sTimerRef.current) {
+        clearTimeout(demo60sTimerRef.current);
+        demo60sTimerRef.current = null;
+      }
+    };
+  }, [isLiveDemo, projectLoadStatus]);
+
+  useEffect(() => {
+    seenGlbForFirstRenderRef.current = null;
+  }, [projectIdParam]);
+
+  useEffect(() => {
     if (phase !== "error" || !error) return;
     const friendly =
       /422|502|503|Gemini|validation|валидац/i.test(error) || error.length > 200
@@ -449,6 +501,7 @@ function EditorAppInner() {
         setRemoteProject(updated);
         loadedIdRef.current = projectIdParam;
         setToastMsg("Проект сохранён");
+        track("project_saved", { mode: "update" });
       } else {
         const r = await postProject({
           name: projectName,
@@ -460,6 +513,7 @@ function EditorAppInner() {
           scroll: false,
         });
         setToastMsg("Проект создан и сохранён");
+        track("project_saved", { mode: "create" });
       }
     } catch (e) {
       setToastMsg(e instanceof Error ? e.message : String(e));
@@ -525,6 +579,20 @@ function EditorAppInner() {
       ? displayArtifacts.zip_url
       : null;
 
+  const handleModelViewerLoaded = useCallback(() => {
+    if (phase === "loading_asset") {
+      markAssetLoaded();
+    }
+    const u = glbUrl ?? "";
+    if (!u) return;
+    if (seenGlbForFirstRenderRef.current === u) return;
+    seenGlbForFirstRenderRef.current = u;
+    track("demo_first_render_success", {
+      live_demo: isLiveDemo,
+      project: projectIdParam ?? "local",
+    });
+  }, [glbUrl, phase, markAssetLoaded, isLiveDemo, projectIdParam]);
+
   const pretty = (s: string) => {
     try {
       return JSON.stringify(JSON.parse(s), null, 2);
@@ -544,6 +612,11 @@ function EditorAppInner() {
         open={loginOpen}
         onClose={() => setLoginOpen(false)}
         onLoggedIn={() => setLoginOpen(false)}
+      />
+      <ProFeedbackModal
+        open={proFeedbackOpen}
+        onClose={() => setProFeedbackOpen(false)}
+        source={isLiveDemo ? "live_demo" : "editor_free"}
       />
       <ProjectTopBar
         projectName={projectName}
@@ -565,6 +638,8 @@ function EditorAppInner() {
         forkBusy={forkBusy}
         onLoginForFork={() => setLoginOpen(true)}
         liveDemo={isLiveDemo}
+        showProFeedback={isLiveDemo || !user}
+        onProFeedbackClick={() => setProFeedbackOpen(true)}
       />
       <DemoOnboardingOverlay
         visible={isLiveDemo && projectLoadStatus === "ready"}
@@ -798,9 +873,8 @@ function EditorAppInner() {
                   diagnostics={
                     jobDisplay ? diagnostics : null
                   }
-                  onLoaded={
-                    phase === "loading_asset" ? markAssetLoaded : undefined
-                  }
+                  onLoaded={handleModelViewerLoaded}
+                  demoAnalytics={isLiveDemo}
                 />
               ) : (
                 <div className="flex h-full min-h-[420px] items-center justify-center bg-neutral-950 text-sm text-neutral-500">

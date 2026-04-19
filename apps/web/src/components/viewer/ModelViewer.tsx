@@ -47,6 +47,7 @@ import {
 import { SceneTree } from "@/components/viewer/SceneTree";
 import { applyInspectorHighlight } from "@/components/viewer/inspectorHighlight";
 import type { JobBom, JobDiagnostics } from "@/lib/api";
+import { track } from "@/lib/track";
 
 function Loader() {
   const { progress } = useProgress();
@@ -282,6 +283,7 @@ export function ModelViewer({
   pdfUrl,
   diagnostics,
   onLoaded,
+  demoAnalytics,
 }: {
   url: string;
   blueprintJson?: string | null;
@@ -295,6 +297,8 @@ export function ModelViewer({
   /** Результаты DFM с воркера. */
   diagnostics?: JobDiagnostics | null;
   onLoaded?: () => void;
+  /** Включить события воронки live demo (BOM / Explode / PDF). */
+  demoAnalytics?: boolean;
 }) {
   const [kinematicSlider, setKinematicSlider] = useState(0);
   const [explodeSlider, setExplodeSlider] = useState(0);
@@ -320,6 +324,9 @@ export function ModelViewer({
     number | null
   >(null);
 
+  const bomViewTrackedRef = useRef(false);
+  const explodeTrackedRef = useRef(false);
+
   const hasBomPanel = Boolean(bom != null || zipUrl);
   const hasDiagnosticsPanel = diagnostics != null;
   const hasDrawingsPanel = Boolean(drawingsUrls?.length);
@@ -334,7 +341,17 @@ export function ModelViewer({
     setDiagnosticHighlightIds(null);
     setDiagnosticSelectedIndex(null);
     setExplodeSlider(0);
+    bomViewTrackedRef.current = false;
+    explodeTrackedRef.current = false;
   }, [url, blueprintJson]);
+
+  useEffect(() => {
+    if (!demoAnalytics || viewerTab !== "bom" || bomViewTrackedRef.current) {
+      return;
+    }
+    bomViewTrackedRef.current = true;
+    track("demo_action_bom_viewed", {});
+  }, [demoAnalytics, viewerTab]);
 
   const onKinematicReady = useCallback(
     (info: { pivots: number; warning: string | null }) => {
@@ -621,7 +638,14 @@ export function ModelViewer({
               />
             ) : null}
             {useTabs && hasGuidePanel && viewerTab === "guide" && pdfUrl ? (
-              <AssemblyGuidePanel pdfUrl={pdfUrl} />
+              <AssemblyGuidePanel
+                pdfUrl={pdfUrl}
+                onPdfDownloadClick={
+                  demoAnalytics
+                    ? () => track("demo_action_pdf_downloaded", {})
+                    : undefined
+                }
+              />
             ) : null}
             {!useTabs && !showInspector && hasBomPanel ? (
               <BomTable bom={bom ?? null} zipUrl={zipUrl ?? null} />
@@ -640,7 +664,14 @@ export function ModelViewer({
               />
             ) : null}
             {!useTabs && !showInspector && hasGuidePanel && pdfUrl ? (
-              <AssemblyGuidePanel pdfUrl={pdfUrl} />
+              <AssemblyGuidePanel
+                pdfUrl={pdfUrl}
+                onPdfDownloadClick={
+                  demoAnalytics
+                    ? () => track("demo_action_pdf_downloaded", {})
+                    : undefined
+                }
+              />
             ) : null}
           </div>
         </div>
@@ -679,9 +710,18 @@ export function ModelViewer({
               min={0}
               max={100}
               value={explodeSlider}
-              onChange={(e) =>
-                setExplodeSlider(Number.parseInt(e.target.value, 10))
-              }
+              onChange={(e) => {
+                const v = Number.parseInt(e.target.value, 10);
+                setExplodeSlider(v);
+                if (
+                  demoAnalytics &&
+                  v > 0 &&
+                  !explodeTrackedRef.current
+                ) {
+                  explodeTrackedRef.current = true;
+                  track("demo_action_exploded_view", { percent: v });
+                }
+              }}
               className="w-full accent-sky-500/90"
             />
           </label>

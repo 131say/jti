@@ -7,6 +7,7 @@ import {
   Loader2,
   LogIn,
   LogOut,
+  MessageSquareText,
   Save,
   Shield,
   ShieldOff,
@@ -34,6 +35,8 @@ export function ProjectTopBar({
   forkBusy,
   onLoginForFork,
   liveDemo = false,
+  showProFeedback = false,
+  onProFeedbackClick,
 }: {
   projectName: string;
   onProjectNameChange: (name: string) => void;
@@ -57,6 +60,9 @@ export function ProjectTopBar({
   onLoginForFork?: () => void;
   /** Публичное демо без облака: без сохранения, имя только для отображения */
   liveDemo?: boolean;
+  /** Waitlist / PRO feedback (live demo или гость). */
+  showProFeedback?: boolean;
+  onProFeedbackClick?: () => void;
 }) {
   const showSave =
     !workspaceReadOnly &&
@@ -223,6 +229,18 @@ export function ProjectTopBar({
           <Link2 className="h-4 w-4" aria-hidden />
           Поделиться
         </button>
+        {showProFeedback && onProFeedbackClick ? (
+          <button
+            type="button"
+            title="Обратная связь и ранний доступ к PRO"
+            disabled={disabled}
+            onClick={onProFeedbackClick}
+            className="inline-flex items-center gap-1.5 rounded border border-sky-800/80 bg-sky-950/40 px-3 py-1.5 text-xs font-medium text-sky-100 hover:bg-sky-900/50 disabled:opacity-40"
+          >
+            <MessageSquareText className="h-4 w-4 shrink-0" aria-hidden />
+            Feedback / PRO
+          </button>
+        ) : null}
       </div>
     </header>
   );

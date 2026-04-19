@@ -1,6 +1,13 @@
 "use client";
 
-export function AssemblyGuidePanel({ pdfUrl }: { pdfUrl: string }) {
+export function AssemblyGuidePanel({
+  pdfUrl,
+  onPdfDownloadClick,
+}: {
+  pdfUrl: string;
+  /** Аналитика: клик по скачиванию PDF (демо-воронка). */
+  onPdfDownloadClick?: () => void;
+}) {
   return (
     <div className="flex h-full min-h-[220px] flex-col gap-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -9,6 +16,7 @@ export function AssemblyGuidePanel({ pdfUrl }: { pdfUrl: string }) {
           download
           target="_blank"
           rel="noopener noreferrer"
+          onClick={() => onPdfDownloadClick?.()}
           className="inline-flex items-center gap-2 rounded border border-sky-500/40 bg-sky-950/40 px-4 py-2 text-sm font-medium text-sky-100 hover:bg-sky-900/50"
         >
           📥 Скачать PDF

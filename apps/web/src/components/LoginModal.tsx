@@ -4,6 +4,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { X } from "lucide-react";
 
 import { useAuth } from "@/context/AuthContext";
+import { track } from "@/lib/track";
 
 export function LoginModal({
   open,
@@ -52,6 +53,7 @@ export function LoginModal({
                 const c = cred.credential;
                 if (!c) return;
                 await loginWithGoogleCredential(c);
+                track("auth_success", { provider: "google" });
                 onLoggedIn?.();
                 onClose();
               }}
