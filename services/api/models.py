@@ -476,7 +476,7 @@ class JobDiagnosticCheck(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: str
-    severity: Literal["pass", "warning", "fail"]
+    severity: Literal["pass", "warning", "fail", "info"]
     message: str
     part_ids: list[str] = Field(default_factory=list)
     metrics: dict[str, Any] | None = None

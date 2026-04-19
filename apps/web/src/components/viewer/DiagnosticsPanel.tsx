@@ -5,6 +5,7 @@ import type { JobDiagnosticCheck, JobDiagnostics } from "@/lib/api";
 function severityIcon(sev: string) {
   if (sev === "fail") return "🔴";
   if (sev === "warning") return "🟡";
+  if (sev === "info") return "🔵";
   return "🟢";
 }
 
@@ -39,7 +40,8 @@ export function DiagnosticsPanel({
       </div>
       <p className="text-[11px] leading-snug text-neutral-500">
         Проверки выполняются на воркере после генерации. Interference — критично;
-        остальное — предупреждения DFM, не замена заводской приёмке.
+        предупреждения DFM — жёлтые; синие (info) — положительные инженерные
+        подсказки (например, корректная зубчатая пара).
       </p>
       {checks.length === 0 ? (
         <p className="rounded border border-neutral-800 bg-neutral-900/40 px-2 py-3 text-center text-[11px] text-neutral-500">
@@ -51,6 +53,13 @@ export function DiagnosticsPanel({
         <ul className="space-y-1.5">
           {checks.map((c: JobDiagnosticCheck, i: number) => {
             const active = selectedIndex === i;
+            const isInfo = c.severity === "info";
+            const isFail = c.severity === "fail";
+            const activeBorder = isFail
+              ? "border-red-800/80 bg-red-950/35"
+              : isInfo
+                ? "border-sky-700/80 bg-sky-950/40"
+                : "border-amber-800/70 bg-amber-950/25";
             return (
               <li key={`${c.type}-${i}-${c.message.slice(0, 24)}`}>
                 <button
@@ -64,7 +73,7 @@ export function DiagnosticsPanel({
                   }}
                   className={`w-full rounded border px-2 py-2 text-left transition-colors ${
                     active
-                      ? "border-red-800/80 bg-red-950/35 text-neutral-100"
+                      ? `${activeBorder} text-neutral-100`
                       : "border-neutral-800 bg-neutral-900/50 hover:border-neutral-600"
                   }`}
                 >

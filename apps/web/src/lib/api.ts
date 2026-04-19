@@ -66,7 +66,7 @@ export type JobPromptBody = {
 /** Одна проверка DFM (воркер). */
 export interface JobDiagnosticCheck {
   type: string;
-  severity: "pass" | "warning" | "fail";
+  severity: "pass" | "warning" | "fail" | "info";
   message: string;
   part_ids: string[];
   /** Количественные метрики (объём пересечения, min толщина, …). */

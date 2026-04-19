@@ -95,6 +95,18 @@ class TestAggregateDiagnosticsStatus(unittest.TestCase):
         ]
         self.assertEqual(aggregate_diagnostics_status(checks), "fail")
 
+    def test_info_only_still_pass(self) -> None:
+        """severity info (например, корректная зубчатая пара) не повышает статус."""
+        checks = [
+            {
+                "type": "gear_mesh",
+                "severity": "info",
+                "message": "ok pair",
+                "part_ids": ["g1", "g2"],
+            },
+        ]
+        self.assertEqual(aggregate_diagnostics_status(checks), "pass")
+
 
 if __name__ == "__main__":
     unittest.main()
