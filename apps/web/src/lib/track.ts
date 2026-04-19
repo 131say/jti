@@ -1,27 +1,41 @@
 /**
- * Продуктовая аналитика (MVP): в dev — console; в prod — опционально POST на endpoint
- * или window.posthog (если задан NEXT_PUBLIC_POSTHOG_KEY — загрузка snippet не делаем,
- * только capture через глобальную заглушку; для полного PostHog подключите snippet в layout).
+ * Продуктовая аналитика: в dev — console; события шлются на first-party
+ * POST /api/v1/telemetry (тот же хост, что и API — минимум потерь из-за AdBlock/CORS).
+ * Опционально: window.posthog.capture при подключённом PostHog.
  */
+
+import { apiBaseUrl } from "@/lib/api";
 
 export type AnalyticsPayload = Record<string, unknown>;
 
 const isDev =
   typeof process !== "undefined" && process.env.NODE_ENV === "development";
 
-function analyticsEndpoint(): string | null {
-  const u =
-    typeof process !== "undefined"
-      ? process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT?.trim()
-      : "";
-  return u && u.length > 0 ? u : null;
-}
-
 function shouldLogToConsole(): boolean {
-  if (typeof process !== "undefined" && process.env.NEXT_PUBLIC_ANALYTICS_DEBUG === "1") {
+  if (
+    typeof process !== "undefined" &&
+    process.env.NEXT_PUBLIC_ANALYTICS_DEBUG === "1"
+  ) {
     return true;
   }
   return Boolean(isDev);
+}
+
+function sendTelemetryFirstParty(body: Record<string, unknown>): void {
+  if (typeof window === "undefined") return;
+  const url = `${apiBaseUrl()}/api/v1/telemetry`;
+  const json = JSON.stringify(body);
+  try {
+    void fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: json,
+      keepalive: true,
+      mode: "cors",
+    }).catch(() => {});
+  } catch {
+    /* ignore */
+  }
 }
 
 /**
@@ -42,27 +56,16 @@ export function track(event: string, payload?: AnalyticsPayload): void {
     console.log("[track]", event, body.payload);
   }
 
-  const url = analyticsEndpoint();
-  if (url && typeof window !== "undefined") {
-    const json = JSON.stringify(body);
-    try {
-      if (navigator.sendBeacon) {
-        const blob = new Blob([json], { type: "application/json" });
-        navigator.sendBeacon(url, blob);
-      } else {
-        void fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: json,
-          keepalive: true,
-        }).catch(() => {});
-      }
-    } catch {
-      /* ignore */
-    }
-  }
+  sendTelemetryFirstParty(body);
 
-  const ph = typeof window !== "undefined" ? (window as unknown as { posthog?: { capture?: (e: string, p?: object) => void } }).posthog : undefined;
+  const ph =
+    typeof window !== "undefined"
+      ? (
+          window as unknown as {
+            posthog?: { capture?: (e: string, p?: object) => void };
+          }
+        ).posthog
+      : undefined;
   if (ph?.capture) {
     try {
       ph.capture(event, payload ?? {});

@@ -1,8 +1,14 @@
 import { getStoredAccessToken } from "@/lib/auth-storage";
 
-const baseUrl = () =>
-  process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
-  "http://127.0.0.1:8899";
+/** Базовый URL API (без завершающего `/`). Для телеметрии и fetch-запросов. */
+export function apiBaseUrl(): string {
+  return (
+    process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/$/, "") ||
+    "http://127.0.0.1:8899"
+  );
+}
+
+const baseUrl = () => apiBaseUrl();
 
 function authHeader(): HeadersInit {
   const t = getStoredAccessToken();

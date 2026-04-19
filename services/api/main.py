@@ -18,6 +18,7 @@ from routes.auth import router as auth_router
 from routes.jobs import router as jobs_router
 from routes.leads import router as leads_router
 from routes.projects import router as projects_router
+from routes.telemetry import router as telemetry_router
 from storage import build_s3_client, ensure_bucket_exists, get_bucket_name
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
@@ -62,6 +63,7 @@ app.include_router(jobs_router)
 app.include_router(auth_router)
 app.include_router(projects_router)
 app.include_router(leads_router)
+app.include_router(telemetry_router)
 
 
 @app.get("/ping")
