@@ -1,4 +1,4 @@
-"""Pydantic v2 модели Blueprint v1.0–v3.2 (v3.2: bearing, gear)."""
+"""Pydantic v2 модели Blueprint v1.0–v3.5 (v3.5: constraint assembly_mates)."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ class BlueprintMetadata(BaseModel):
 
     project_id: str = Field(min_length=1)
     schema_version: Literal[
-        "1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2"
+        "1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2", "3.5"
     ]
 
 
@@ -394,7 +394,53 @@ class AssemblyMateSnapToOperation(BaseModel):
     )
 
 
-AssemblyMate = AssemblyMateSnapToOperation
+class AssemblyMateConcentric(BaseModel):
+    """Совмещение локальной +Z source с осью hole на target (MVP: только rotation + axis для следующих шагов)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["concentric"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    target_operation_index: int = Field(ge=0)
+    reverse_direction: bool = Field(
+        default=False,
+        description="Развернуть ось совмещения на 180°.",
+    )
+
+
+class AssemblyMateCoincident(BaseModel):
+    """Совмещение центров вдоль оси (после concentric — axis_u; иначе линия центров)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["coincident"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    offset: float = Field(default=0.0, description="Смещение в мм вдоль оси прижима.")
+    flip: bool = Field(default=False, description="Поворот на 180° вокруг оси ⟂ оси прижима.")
+
+
+class AssemblyMateDistance(BaseModel):
+    """Фиксированное расстояние центра source от центра target вдоль axis_u или линии центров."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["distance"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    value: float = Field(description="Расстояние в мм (после resolve $-выражений).")
+
+
+AssemblyMate = Annotated[
+    Union[
+        AssemblyMateSnapToOperation,
+        AssemblyMateConcentric,
+        AssemblyMateCoincident,
+        AssemblyMateDistance,
+    ],
+    Field(discriminator="type"),
+]
 
 
 # --- Root payload ---
@@ -418,7 +464,7 @@ class ResolvedBlueprintPayload(BaseModel):
     simulation: SimulationSection
     assembly_mates: list[AssemblyMate] | None = Field(
         default=None,
-        description="Логические привязки (v3.0); резолвер заполняет pose у source до генерации CAD.",
+        description="Логические привязки (v3.0 snap; v3.5 concentric/coincident/distance); резолвер заполняет pose у source.",
     )
 
 
@@ -433,6 +479,10 @@ BlueprintPayload = ResolvedBlueprintPayload
 class JobCreateResponse(BaseModel):
     job_id: str
     status: Literal["queued"]
+    resolved_transforms: dict[str, Any] | None = Field(
+        default=None,
+        description="Если в запросе debug_constraints=true — pose частей после mate_solver (для отладки).",
+    )
 
 
 class JobArtifacts(BaseModel):

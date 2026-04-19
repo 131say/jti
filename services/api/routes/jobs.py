@@ -43,6 +43,9 @@ async def create_job(request: Request) -> JobCreateResponse:
     if not isinstance(body, dict):
         raise HTTPException(status_code=400, detail="Ожидался JSON-объект")
 
+    debug_constraints = bool(body.pop("debug_constraints", False))
+    resolved_dbg: dict | None = None
+
     if "prompt" in body:
         if "metadata" in body:
             raise HTTPException(
@@ -71,8 +74,10 @@ async def create_job(request: Request) -> JobCreateResponse:
                     detail=jsonable_encoder(e.errors()),
                 ) from e
             try:
-                fin = finalize_resolved_blueprint(
-                    cb_raw.model_dump(mode="json"), mate_warnings=None
+                fin, resolved_dbg = finalize_resolved_blueprint(
+                    cb_raw.model_dump(mode="json"),
+                    mate_warnings=None,
+                    debug_constraints=debug_constraints,
                 )
                 ResolvedBlueprintPayload.model_validate(fin)
             except BlueprintResolutionError as e:
@@ -122,8 +127,10 @@ async def create_job(request: Request) -> JobCreateResponse:
                 detail=jsonable_encoder(e.errors()),
             ) from e
         try:
-            fin = finalize_resolved_blueprint(
-                raw_payload.model_dump(mode="json"), mate_warnings=None
+            fin, resolved_dbg = finalize_resolved_blueprint(
+                raw_payload.model_dump(mode="json"),
+                mate_warnings=None,
+                debug_constraints=debug_constraints,
             )
             ResolvedBlueprintPayload.model_validate(fin)
         except BlueprintResolutionError as e:
@@ -154,7 +161,11 @@ async def create_job(request: Request) -> JobCreateResponse:
         job_id,
         payload.model_dump(mode="json"),
     )
-    return JobCreateResponse(job_id=job_id, status="queued")
+    return JobCreateResponse(
+        job_id=job_id,
+        status="queued",
+        resolved_transforms=resolved_dbg,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)

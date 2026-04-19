@@ -71,7 +71,7 @@ class TestMateSolver(unittest.TestCase):
                 }
             ],
         }
-        out = resolve_assembly_mates(bp, warnings=None)
+        out, _ = resolve_assembly_mates(bp, warnings=None)
         bolt = out["geometry"]["parts"][1]
         self.assertAlmostEqual(bolt["position"][0], 10.0, places=5)
         self.assertAlmostEqual(bolt["position"][1], 20.0, places=5)
@@ -138,6 +138,67 @@ class TestMateSolver(unittest.TestCase):
         }
         with self.assertRaises(MateResolutionError):
             resolve_assembly_mates(bp)
+
+    def test_debug_constraints_returns_transforms(self) -> None:
+        bp = {
+            "metadata": {"project_id": "t_dbg", "schema_version": "3.5"},
+            "global_settings": {"units": "mm", "up_axis": "Z"},
+            "geometry": {
+                "parts": [
+                    {
+                        "part_id": "plate",
+                        "base_shape": "box",
+                        "parameters": {"length": 50, "width": 40, "height": 8},
+                        "position": [0, 0, 4],
+                        "rotation": [0, 0, 0],
+                        "operations": [
+                            {
+                                "type": "hole",
+                                "diameter": 8.5,
+                                "depth": "through_all",
+                                "position": [10, 20, 0],
+                                "direction": [0, 0, 1],
+                            }
+                        ],
+                    },
+                    {
+                        "part_id": "bolt",
+                        "base_shape": "fastener",
+                        "parameters": {
+                            "type": "bolt_hex",
+                            "size": "M8",
+                            "length": 20,
+                            "fit": "clearance",
+                        },
+                        "operations": [],
+                    },
+                ]
+            },
+            "simulation": _minimal_sim(),
+            "assembly_mates": [
+                {
+                    "type": "concentric",
+                    "source_part": "bolt",
+                    "target_part": "plate",
+                    "target_operation_index": 0,
+                },
+                {
+                    "type": "coincident",
+                    "source_part": "bolt",
+                    "target_part": "plate",
+                    "offset": 0.0,
+                    "flip": False,
+                },
+            ],
+        }
+        out, dbg = resolve_assembly_mates(bp, warnings=None, debug_constraints=True)
+        self.assertIsNotNone(dbg)
+        self.assertIn("bolt", dbg or {})
+        self.assertIn("position", dbg["bolt"])
+        bolt = out["geometry"]["parts"][1]
+        self.assertAlmostEqual(bolt["position"][0], 10.0, places=5)
+        self.assertAlmostEqual(bolt["position"][1], 20.0, places=5)
+        self.assertAlmostEqual(bolt["position"][2], 4.0, places=5)
 
     def test_fillet_index_rejected(self) -> None:
         bp = {

@@ -41,11 +41,11 @@ class AiBlueprintValidationError(AiServiceError):
 
 
 SYSTEM_PROMPT = """You are a mechanical CAD engineer assistant for AI-Forge.
-Your task: produce exactly ONE JSON object that conforms to Blueprint schema version 1.0 through 3.2.
+Your task: produce exactly ONE JSON object that conforms to Blueprint schema version 1.0 through 3.5.
 
 Hard rules:
-- Root keys: required metadata, global_settings, geometry, simulation. Optional global_variables (Blueprint v2.0 parametric constants). Optional assembly_mates (Blueprint v3.0: snap parts to hole operations). No other extra keys.
-- metadata.schema_version: "1.0" … "3.2" (use "3.2" when you include bearings or gears; use "3.0" when you use assembly_mates (with or without bearings/gears) to avoid duplicating coordinates; "2.1" when you include fasteners without mates; "2.0" when you use global_variables and $expressions; "1.4" for revolved_profile without globals; "1.3" for extruded_profile; "1.2" for hole patterns; "1.1" for material presets on parts).
+- Root keys: required metadata, global_settings, geometry, simulation. Optional global_variables (Blueprint v2.0 parametric constants). Optional assembly_mates (Blueprint v3.0+). No other extra keys.
+- metadata.schema_version: "1.0" … "3.5" (use "3.5" when you use constraint mates concentric/coincident/distance; use "3.2" when you include bearings or gears without v3.5 mates; use "3.0" when you only use snap_to_operation mates; "2.1" when you include fasteners without mates; "2.0" when you use global_variables and $expressions; "1.4" for revolved_profile without globals; "1.3" for extruded_profile; "1.2" for hole patterns; "1.1" for material presets on parts).
 - metadata.project_id: short snake_case id derived from the user request.
 - global_settings.units: prefer "mm" unless the user specifies otherwise. up_axis: "Z" unless specified.
 - geometry.parts: at least one part. Supported base_shape values for generation: "cylinder", "box", "extruded_profile", "revolved_profile", "fastener", "bearing", "gear". Do NOT use "sphere" or "custom_profile" for this pipeline.
@@ -58,8 +58,10 @@ Hard rules:
 - Fasteners (schema 2.1): base_shape "fastener". parameters: type "bolt_hex" | "nut_hex" | "washer"; size "M6"|"M8"|"M10"|"M12"; for bolt_hex set length (mm) = shaft length under head (no modeled threads). fit: "clearance" | "tight" (reserved, default clearance). operations: [] for fasteners. Optional position [x,y,z] and rotation [rx,ry,rz] in degrees (world frame, same convention as cq.Rot) to place the part in the assembly.
 - Bearings (schema 3.2): base_shape "bearing". parameters: series — catalog string, e.g. "608", "608zz", "6000zz", "6201" (see worker catalog). operations: []. BOM treats bearings as purchased; geometry is a simplified ring (no balls). Same +Z insertion convention as fasteners for mates.
 - Gears (schema 3.2): base_shape "gear". parameters: module (mm), teeth (integer >= 4), thickness (mm), bore_diameter (mm), high_lod optional boolean default false. Preview (high_lod false): lightweight polygon on outer diameter for fast visualization. high_lod true: procedural trapezoid-tooth spur gear for prototyping and 3D print / Python export — good approximation, not mathematically perfect involute (not for heavy CNC). Expect longer build time and larger STEP/STL when high_lod is true.
-- Gear reducers (two+ meshing spur gears, same module): Put shaft/hole spacing on a single source of truth in global_variables. Define e.g. `center_distance` = half-sum of pitch diameters plus backlash so the resolver computes it: `center_distance = (module * teeth1 + module * teeth2) / 2 + (0.05 * module)` (module must be identical for both gears). Use string expressions with `$center_distance` (and `$module`, `$teeth1`, `$teeth2` if helpful) for positions of parallel shaft holes in the housing — distance between gear rotation axes must equal `center_distance` exactly. Do not hand-type unrelated decimals for meshing pairs.
-- Assembly mates (schema 3.0, strongly recommended instead of hand-matched coords): optional root array "assembly_mates". Each entry: type "snap_to_operation"; source_part = part_id of the part to move (fastener or bearing); target_part = part_id of the plate/bracket that has a hole; target_operation_index = 0-based index of a hole operation in that part's "operations" array (MVP: must point to a direct hole, not a pattern operation); reverse_direction optional boolean (true flips insertion axis 180°). The source part local insertion axis is always +Z; the resolver aligns +Z to the hole direction in world space (quaternion-based, no duplicated position/direction math). Omit position/rotation on source parts when a mate defines them (mates override explicit pose with a server warning). Prefer mates whenever holes use parametric $ expressions so coordinates never drift out of sync.
+- Gear reducers (two+ meshing spur gears, same module): Put shaft/hole spacing on a single source of truth in global_variables. Define e.g. `center_distance` = half-sum of pitch diameters plus backlash so the resolver computes it: `center_distance = (module * teeth1 + module * teeth2) / 2 + (0.05 * module)` (module must be identical for both gears). Use string expressions with `$center_distance` (and `$module`, `$teeth1`, `$teeth2` if helpful) for positions of parallel shaft holes in the housing — distance between gear rotation axes must equal `center_distance` exactly. With schema 3.5 you may instead drive spacing via assembly_mates type "distance" and value "$center_distance" after concentric mates to the holes. Do not hand-type unrelated decimals for meshing pairs.
+- Assembly mates (schema 3.0+, strongly recommended instead of hand-matched coords): optional root array "assembly_mates".
+  - Legacy snap (v3.0): type "snap_to_operation"; source_part; target_part; target_operation_index (hole index); reverse_direction optional. Aligns source +Z to hole axis and snaps origin to hole center (full pose).
+  - Constraint assembly (v3.5): combine logical mates on the same source_part; resolver order per source is strict: (1) concentric or snap_to_operation for axis — type "concentric": same fields as snap but only sets rotation + shared axis (does NOT fix depth along the axis); (2) "coincident": source_part, target_part, offset (mm, default 0), flip (bool, 180° flip about an axis perpendicular to the mate axis) — MVP: moves source origin along the axis toward target part origin; (3) "distance": source_part, target_part, value (number or $global after resolve) — sets distance between part origins along the axis from step (1) if present, else along the line between centers. Use concentric + coincident instead of snap when you want explicit steps; use concentric + distance for gear/shaft center distance driven by global_variables (e.g. $center_distance). Omit position/rotation on source parts when mates define them (mates override explicit pose with a server warning).
 - Clearance / DFM (critical): Nominal metric fastener shank diameter equals the M size in mm (e.g. M8 → ~8 mm). Through-holes in manufactured parts that must clear the bolt shank MUST be oversized: at least +0.4 mm, preferably +0.5 mm (e.g. M8 bolt → hole diameter ≥ 8.5 mm). Undersized holes will fail interference checks.
 - Hole operations (optional): type must be "hole", diameter > 0, depth is either the string "through_all" OR a positive number (blind hole), position [x,y,z], direction [x,y,z] (any non-zero vector; will be normalized server-side).
 - Fillet (optional): type "fillet", radius > 0, selector string (default "ALL" for all edges). Use CadQuery-style edge selectors to limit edges, e.g. "ALL", "|Z" (edges parallel to Z), ">Z", "<X". If the radius is too large for the geometry, the server may skip the fillet and record a warning.
@@ -81,7 +83,7 @@ Output requirements:
 - Use JSON numbers for numeric fields when not using v2.0 expressions; with v2.0, use numbers for global_variables values and either numbers or allowed string expressions for linked dimensions as above. String fields that are not numeric (e.g. part_id, depth "through_all", selectors) must stay as plain strings without $ unless they intentionally encode a formula (rare).
 """
 
-EDIT_SYSTEM_PROMPT = """You are editing an existing AI-Forge Blueprint v1.0/v1.1/v1.2/v1.3/v1.4/v2.0/v2.1/v3.0/v3.2 (mechanical CAD).
+EDIT_SYSTEM_PROMPT = """You are editing an existing AI-Forge Blueprint v1.0/v1.1/v1.2/v1.3/v1.4/v2.0/v2.1/v3.0/v3.2/v3.5 (mechanical CAD).
 
 The blueprint you receive is a Raw Blueprint: geometry may use string expressions with $variable references and global_variables (schema 2.0). Preserve formulas and global_variables structure when possible.
 
@@ -92,10 +94,10 @@ You receive:
 2) The current valid blueprint as JSON (below in the user message).
 
 Your task:
-- Return exactly ONE complete JSON object that still conforms to Blueprint schema v1.0 through v3.2.
+- Return exactly ONE complete JSON object that still conforms to Blueprint schema v1.0 through v3.5.
 - Apply ONLY the changes implied by the user request; keep everything else identical unless consistency requires a small adjustment.
 - Preserve part_id values, joint topology, and material references unless the user explicitly asks to rename or restructure.
-- Use base_shape "cylinder", "box", "extruded_profile", "revolved_profile", "fastener", "bearing", or "gear" when needed (same pipeline as zero-shot). For gears, set high_lod true only when the user needs export/print-ready tooth detail (procedural spur approximation); default false for quick previews. For two meshing spur gears use one module and drive shaft spacing from global_variables: `center_distance = (module * teeth1 + module * teeth2) / 2 + (0.05 * module)` with $ references in positions. For fasteners keep clearance holes in mating parts ≥ M + 0.5 mm when possible. Stepped shafts: prefer "revolved_profile". Bearings: use "assembly_mates" to snap the bearing to the housing hole.
+- Use base_shape "cylinder", "box", "extruded_profile", "revolved_profile", "fastener", "bearing", or "gear" when needed (same pipeline as zero-shot). For gears, set high_lod true only when the user needs export/print-ready tooth detail (procedural spur approximation); default false for quick previews. For two meshing spur gears use one module and drive shaft spacing from global_variables: `center_distance = (module * teeth1 + module * teeth2) / 2 + (0.05 * module)` with $ references. Prefer schema 3.5 assembly_mates: concentric each gear to its housing hole, then distance between gears with value "$center_distance" (resolver applies spacing along the shared axis after concentric). For fasteners keep clearance holes in mating parts ≥ M + 0.5 mm when possible. Stepped shafts: prefer "revolved_profile". Bearings: use assembly_mates (snap or concentric+coincident) to the housing hole.
 - Same rules as creation for holes, fillets, chamfers, hole patterns (v1.2 linear_pattern / circular_pattern), simulation.materials, simulation.nodes, simulation.joints.
 - If the user asks how to assemble or install parts in the real world, refer them to the generated PDF (Assembly Guide tab / docs/assembly_instructions.pdf in the ZIP) after a successful Forge build — it reflects assembly_mates and BOM.
 
@@ -179,7 +181,7 @@ def _generate_json_from_gemini(
 
 def _repair_prompt(invalid_data: dict[str, Any], err: ValidationError) -> str:
     return (
-        "The previous JSON failed Pydantic validation for Blueprint (v1.x through v3.2). "
+        "The previous JSON failed Pydantic validation for Blueprint (v1.x through v3.5). "
         "Output ONE corrected JSON object only (same schema as before).\n\n"
         "Validation errors:\n"
         + json.dumps(err.errors(), indent=2, default=str)
@@ -252,7 +254,7 @@ def generate_blueprint_from_prompt(
             )
             continue
         try:
-            fin = finalize_resolved_blueprint(
+            fin, _ = finalize_resolved_blueprint(
                 raw.model_dump(mode="json"), mate_warnings=None
             )
             ResolvedBlueprintPayload.model_validate(fin)

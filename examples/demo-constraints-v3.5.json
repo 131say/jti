@@ -1,0 +1,83 @@
+{
+  "metadata": {
+    "project_id": "demo_constraints_v35",
+    "schema_version": "3.5"
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": [
+      {
+        "part_id": "plate_bottom",
+        "base_shape": "box",
+        "material": "steel",
+        "parameters": {
+          "length": 50,
+          "width": 40,
+          "height": 8
+        },
+        "position": [0, 0, 4],
+        "rotation": [0, 0, 0],
+        "operations": [
+          {
+            "type": "hole",
+            "diameter": 8.5,
+            "depth": "through_all",
+            "position": [0, 0, 0],
+            "direction": [0, 0, 1]
+          }
+        ]
+      },
+      {
+        "part_id": "bolt_m8",
+        "base_shape": "fastener",
+        "material": "steel",
+        "parameters": {
+          "type": "bolt_hex",
+          "size": "M8",
+          "length": 28,
+          "fit": "clearance"
+        },
+        "operations": []
+      }
+    ]
+  },
+  "assembly_mates": [
+    {
+      "type": "concentric",
+      "source_part": "bolt_m8",
+      "target_part": "plate_bottom",
+      "target_operation_index": 0,
+      "reverse_direction": false
+    },
+    {
+      "type": "coincident",
+      "source_part": "bolt_m8",
+      "target_part": "plate_bottom",
+      "offset": 0,
+      "flip": false
+    }
+  ],
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [
+      {
+        "part_id": "plate_bottom",
+        "mat_id": "steel"
+      },
+      {
+        "part_id": "bolt_m8",
+        "mat_id": "steel"
+      }
+    ],
+    "joints": []
+  }
+}

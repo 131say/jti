@@ -51,7 +51,12 @@ def build_mate_edges(
         if not isinstance(m, dict):
             w.append(f"assembly_mates[{i}]: неверный элемент")
             continue
-        if m.get("type") != "snap_to_operation":
+        if m.get("type") not in (
+            "snap_to_operation",
+            "concentric",
+            "coincident",
+            "distance",
+        ):
             continue
         src = str(m.get("source_part") or "").strip()
         tgt = str(m.get("target_part") or "").strip()
@@ -133,10 +138,14 @@ def build_assembly_steps(
     mates_raw = blueprint.get("assembly_mates") or []
     mates_by_source: dict[str, dict[str, Any]] = {}
     for m in mates_raw:
-        if isinstance(m, dict) and m.get("type") == "snap_to_operation":
-            sid = str(m.get("source_part") or "").strip()
-            if sid and sid not in mates_by_source:
-                mates_by_source[sid] = m
+        if not isinstance(m, dict):
+            continue
+        t = m.get("type")
+        if t not in ("snap_to_operation", "concentric"):
+            continue
+        sid = str(m.get("source_part") or "").strip()
+        if sid and sid not in mates_by_source:
+            mates_by_source[sid] = m
 
     steps: list[AssemblyStep] = []
     step_no = 0
@@ -149,10 +158,17 @@ def build_assembly_steps(
             tgt = str(m.get("target_part") or "")
             toi = m.get("target_operation_index")
             toi_i = int(toi) if isinstance(toi, (int, float)) else None
-            detail = (
-                f"Install {pid} onto {tgt} (hole operation index {toi_i}). "
-                f"Local +Z aligns with the hole axis."
-            )
+            mt = m.get("type")
+            if mt == "concentric":
+                detail = (
+                    f"Install {pid} concentric to {tgt} (hole index {toi_i}). "
+                    f"Local +Z aligns with the hole axis; add coincident/distance if needed."
+                )
+            else:
+                detail = (
+                    f"Install {pid} onto {tgt} (hole operation index {toi_i}). "
+                    f"Local +Z aligns with the hole axis."
+                )
             steps.append(
                 AssemblyStep(
                     step_no=step_no,
@@ -163,7 +179,9 @@ def build_assembly_steps(
                 )
             )
         else:
-            detail = f"Add part {pid} to the assembly (no snap_to_operation mate for this part)."
+            detail = (
+                f"Add part {pid} to the assembly (no snap/concentric mate for this part)."
+            )
             steps.append(
                 AssemblyStep(
                     step_no=step_no,

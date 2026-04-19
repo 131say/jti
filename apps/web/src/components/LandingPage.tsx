@@ -8,7 +8,10 @@ import { LeadWaitlistSection } from "@/components/LeadWaitlistSection";
 import { LoginModal } from "@/components/LoginModal";
 import { useAuth } from "@/context/AuthContext";
 
-import { LIVE_DEMO_PROJECT_SLUG } from "@/lib/demo";
+import {
+  LIVE_DEMO_PROJECT_SLUG,
+  MATES_V3_LIVE_DEMO_SLUG,
+} from "@/lib/demo";
 import { track } from "@/lib/track";
 
 export function LandingPage() {
@@ -45,6 +48,7 @@ export function LandingPage() {
   }, [router]);
 
   const demoHref = `/editor?project=${LIVE_DEMO_PROJECT_SLUG}`;
+  const demoMatesV3Href = `/editor?project=${MATES_V3_LIVE_DEMO_SLUG}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -343,12 +347,31 @@ export function LandingPage() {
               }}
               className="mt-6 inline-flex items-center justify-center rounded-xl border border-sky-500/50 bg-sky-950/40 px-8 py-4 text-base font-semibold text-sky-100 transition hover:bg-sky-900/50"
             >
-              👉 ▶️ Открыть демо проект
+              👉 ▶️ Открыть демо (Constraints v3.5)
             </Link>
             <p className="mt-4 text-xs text-neutral-500">
-              Сборка: плита, вал, подшипник, шкив, болты — только{" "}
-              <code className="text-neutral-400">assembly_mates</code>, без ручных
-              координат крепежа.
+              Плита и болт: привязки{" "}
+              <code className="text-neutral-400">concentric</code> +{" "}
+              <code className="text-neutral-400">coincident</code> — без ручного
+              подбора координат крепежа.
+            </p>
+            <p className="mt-3 text-xs text-neutral-600">
+              <Link
+                href={demoMatesV3Href}
+                onClick={() => {
+                  track("live_demo_opened", {
+                    surface: "landing_demo_section_legacy_mates",
+                  });
+                  try {
+                    sessionStorage.setItem("jti_live_demo_from_landing", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="text-sky-400/90 underline decoration-sky-600/50 underline-offset-2 hover:text-sky-300"
+              >
+                Классическое демо: редуктор (snap mates v3)
+              </Link>
             </p>
           </div>
         </section>

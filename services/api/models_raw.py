@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 try:
     from models import (
-        AssemblyMate,
         BlueprintMetadata,
         GeometryPartMaterialFields,
         GlobalSettings,
@@ -20,7 +19,6 @@ try:
     )
 except ModuleNotFoundError:  # тесты: PYTHONPATH=services → пакет api
     from api.models import (
-        AssemblyMate,
         BlueprintMetadata,
         GeometryPartMaterialFields,
         GlobalSettings,
@@ -272,6 +270,59 @@ RawGeometryPart = Annotated[
 ]
 
 
+# --- Assembly mates (raw: offset/value допускают $-строки до finalize) ---
+
+
+class RawAssemblyMateSnapToOperation(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["snap_to_operation"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    target_operation_index: int = Field(ge=0)
+    reverse_direction: bool = False
+
+
+class RawAssemblyMateConcentric(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["concentric"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    target_operation_index: int = Field(ge=0)
+    reverse_direction: bool = False
+
+
+class RawAssemblyMateCoincident(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["coincident"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    offset: NumExpr = 0.0
+    flip: bool = False
+
+
+class RawAssemblyMateDistance(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["distance"]
+    source_part: str = Field(min_length=1)
+    target_part: str = Field(min_length=1)
+    value: NumExpr
+
+
+RawAssemblyMate = Annotated[
+    Union[
+        RawAssemblyMateSnapToOperation,
+        RawAssemblyMateConcentric,
+        RawAssemblyMateCoincident,
+        RawAssemblyMateDistance,
+    ],
+    Field(discriminator="type"),
+]
+
+
 class RawGeometrySection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -291,9 +342,9 @@ class RawBlueprintPayload(BaseModel):
     global_settings: GlobalSettings
     geometry: RawGeometrySection
     simulation: SimulationSection
-    assembly_mates: list[AssemblyMate] | None = Field(
+    assembly_mates: list[RawAssemblyMate] | None = Field(
         default=None,
-        description="Сборочные привязки v3.0; после резолва заполняют pose у source_part.",
+        description="Сборочные привязки (snap + v3.5 constraints); после резолва — числовой ResolvedBlueprintPayload.",
     )
 
 

@@ -66,7 +66,7 @@ async def generate_blueprint_task(ctx, job_id: str, blueprint: dict) -> None:
     raw_blueprint = copy.deepcopy(blueprint)
     mate_pipeline_warnings: list[str] = []
     try:
-        resolved_blueprint = finalize_resolved_blueprint(
+        resolved_blueprint, _ = finalize_resolved_blueprint(
             raw_blueprint, mate_warnings=mate_pipeline_warnings
         )
         ResolvedBlueprintPayload.model_validate(resolved_blueprint)

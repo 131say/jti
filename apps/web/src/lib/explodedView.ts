@@ -95,7 +95,7 @@ export function parseExplodeBlueprint(
     const firstMateBySource = new Map<string, BpMate>();
     for (const m of mates) {
       if (!m || typeof m !== "object") continue;
-      if (m.type !== "snap_to_operation") continue;
+      if (m.type !== "snap_to_operation" && m.type !== "concentric") continue;
       const src = m.source_part;
       if (typeof src !== "string" || !src) continue;
       if (!firstMateBySource.has(src)) firstMateBySource.set(src, m);

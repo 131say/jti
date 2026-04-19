@@ -33,7 +33,11 @@ import {
   putProject,
   type ProjectRecord,
 } from "@/lib/api";
-import { LIVE_DEMO_PROJECT_SLUG } from "@/lib/demo";
+import {
+  getLiveDemoDisplayName,
+  getLiveDemoJsonPath,
+  isLiveDemoSlug,
+} from "@/lib/demo";
 import { track } from "@/lib/track";
 
 /** Минимальная проверка «похоже на Blueprint v1» для прикрепления к промпту. */
@@ -114,7 +118,8 @@ function EditorAppInner() {
 
   const { user, logout } = useAuth();
 
-  const isLiveDemo = projectIdParam === LIVE_DEMO_PROJECT_SLUG;
+  const isLiveDemo =
+    projectIdParam != null && isLiveDemoSlug(projectIdParam);
 
   const workspaceReadOnly = useMemo(() => {
     if (!remoteProject) return false;
@@ -258,6 +263,20 @@ function EditorAppInner() {
       .catch(() => reset("{}"));
   }, [reset]);
 
+  const loadDemoConstraintsV35 = useCallback(() => {
+    fetch("/demo-constraints-v3.5.json")
+      .then((r) => r.text())
+      .then((t) => reset(t))
+      .catch(() => reset("{}"));
+  }, [reset]);
+
+  const loadDemoMatesV3 = useCallback(() => {
+    fetch("/demo-mates-v3.json")
+      .then((r) => r.text())
+      .then((t) => reset(t))
+      .catch(() => reset("{}"));
+  }, [reset]);
+
   useEffect(() => {
     if (projectIdParam) return;
     if (demoLoadedRef.current) return;
@@ -277,25 +296,27 @@ function EditorAppInner() {
       return;
     }
 
-    if (projectIdParam === LIVE_DEMO_PROJECT_SLUG) {
+    if (projectIdParam && isLiveDemoSlug(projectIdParam)) {
+      const slug = projectIdParam;
+      const jsonPath = getLiveDemoJsonPath(slug);
       let cancelled = false;
       setProjectLoadStatus("loading");
       setProjectLoadError(null);
       void (async () => {
         try {
-          const r = await fetch("/demo-mates-v3.json");
+          const r = await fetch(jsonPath);
           if (!r.ok) {
             throw new Error(`Не удалось загрузить демо (${r.status})`);
           }
           const t = await r.text();
           if (cancelled) return;
           reset(t);
-          setProjectName("Live demo — редуктор (mates v3)");
+          setProjectName(getLiveDemoDisplayName(slug));
           setChatMessages([]);
           setRemoteProject(null);
           setCloudArtifacts(null);
           setCloudBom(null);
-          loadedIdRef.current = LIVE_DEMO_PROJECT_SLUG;
+          loadedIdRef.current = slug;
           setProjectLoadStatus("ready");
         } catch (e) {
           if (cancelled) return;
@@ -690,6 +711,20 @@ function EditorAppInner() {
                 className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200 hover:bg-neutral-800"
               >
                 Загрузить демо (Параметрика)
+              </button>
+              <button
+                type="button"
+                onClick={() => loadDemoConstraintsV35()}
+                className="rounded border border-sky-800/60 bg-sky-950/50 px-2 py-1 text-[11px] text-sky-100 hover:bg-sky-900/60"
+              >
+                Сборка (Constraints v3.5)
+              </button>
+              <button
+                type="button"
+                onClick={() => loadDemoMatesV3()}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200 hover:bg-neutral-800"
+              >
+                Редуктор (mates v3)
               </button>
             </div>
           </div>

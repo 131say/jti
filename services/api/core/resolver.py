@@ -166,15 +166,21 @@ def finalize_resolved_blueprint(
     raw: dict[str, Any],
     *,
     mate_warnings: list[str] | None = None,
-) -> dict[str, Any]:
+    debug_constraints: bool = False,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
     Полный конвейер: ``resolve_blueprint_variables`` → ``resolve_assembly_mates``.
-    Используется воркером и API до ``ResolvedBlueprintPayload.model_validate``.
+
+    Возвращает ``(blueprint, resolved_transforms)``; второй элемент — только при
+    ``debug_constraints=True`` (иначе ``None``). Используется воркером и API до
+    ``ResolvedBlueprintPayload.model_validate`` (первый элемент).
     """
     from .mate_solver import resolve_assembly_mates
 
     resolved = resolve_blueprint_variables(copy.deepcopy(raw))
-    return resolve_assembly_mates(resolved, warnings=mate_warnings)
+    return resolve_assembly_mates(
+        resolved, warnings=mate_warnings, debug_constraints=debug_constraints
+    )
 
 
 def resolve_blueprint_variables(raw: dict[str, Any]) -> dict[str, Any]:

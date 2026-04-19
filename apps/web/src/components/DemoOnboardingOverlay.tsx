@@ -69,8 +69,12 @@ export function DemoOnboardingOverlay({ visible }: DemoOnboardingOverlayProps) {
           </li>
         </ol>
         <p className="mt-3 text-[11px] text-neutral-500">
-          Сценарий: плита, вал, подшипник, шкив, болты — координаты через{" "}
-          <code className="text-neutral-400">assembly_mates</code>.
+          В blueprint — <code className="text-neutral-400">assembly_mates</code>
+          : для v3.5 доступны{" "}
+          <code className="text-neutral-400">concentric</code> /{" "}
+          <code className="text-neutral-400">coincident</code> /{" "}
+          <code className="text-neutral-400">distance</code> или классический{" "}
+          <code className="text-neutral-400">snap_to_operation</code>.
         </p>
         <button
           type="button"

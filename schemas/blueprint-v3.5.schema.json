@@ -1,0 +1,690 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-forge.dev/schemas/blueprint-v3.5.schema.json",
+  "title": "AI-Forge Universal Blueprint v3.5",
+  "description": "v3.5 — constraint assembly_mates (concentric, coincident, distance) + snap_to_operation; v3.2 — bearing/gear; v2.1 — fastener, $-выражения.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metadata", "global_settings", "geometry", "simulation"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["project_id", "schema_version"],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "description": "Стабильный идентификатор проекта (рекомендуется UUID).",
+          "minLength": 1
+        },
+        "schema_version": {
+          "type": "string",
+          "enum": ["1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2", "3.5"],
+          "description": "Версия контракта Blueprint (3.5 — constraint mates; 3.2 — bearing/gear; 3.0 — assembly_mates; 2.1 — fastener; 2.0 — global_variables)."
+        }
+      }
+    },
+    "global_variables": {
+      "type": "object",
+      "description": "Именованные числовые константы (MVP: только литералы, без ссылок между переменными). В geometry/simulation строковые поля с $ превращаются в числа до Pydantic.",
+      "additionalProperties": {
+        "type": "number"
+      }
+    },
+    "global_settings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["units", "up_axis"],
+      "properties": {
+        "units": {
+          "type": "string",
+          "enum": ["mm", "m", "in"],
+          "description": "Линейные единицы для геометрии и симуляции (согласовать с экспортом)."
+        },
+        "up_axis": {
+          "type": "string",
+          "enum": ["X", "Y", "Z"],
+          "description": "Вертикальная ось сцены (для согласования CAD ↔ веб-рендер ↔ MuJoCo)."
+        }
+      }
+    },
+    "geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parts"],
+      "properties": {
+        "parts": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/geometryPart" }
+        }
+      }
+    },
+    "simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["materials", "nodes", "joints"],
+      "properties": {
+        "materials": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/simMaterial" }
+        },
+        "nodes": {
+          "type": "array",
+          "description": "Привязка частей к материалам и опциональные переопределения массы.",
+          "items": { "$ref": "#/$defs/simNode" }
+        },
+        "joints": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/simJoint" }
+        }
+      }
+    },
+    "assembly_mates": {
+      "type": "array",
+      "description": "Привязки сборки: snap_to_operation или v3.5 constraints (concentric, coincident, distance); резолвер выставляет pose source-деталей.",
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/assemblyMateSnapToOperation" },
+          { "$ref": "#/$defs/assemblyMateConcentric" },
+          { "$ref": "#/$defs/assemblyMateCoincident" },
+          { "$ref": "#/$defs/assemblyMateDistance" }
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "assemblyMateConcentric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source_part", "target_part", "target_operation_index"],
+      "properties": {
+        "type": { "const": "concentric" },
+        "source_part": { "type": "string", "minLength": 1 },
+        "target_part": { "type": "string", "minLength": 1 },
+        "target_operation_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Индекс hole в operations цели; локальная +Z source выравнивается с direction hole (MVP: только ориентация и ось)."
+        },
+        "reverse_direction": {
+          "type": "boolean",
+          "default": false,
+          "description": "Развернуть ось совмещения на 180°."
+        }
+      }
+    },
+    "assemblyMateCoincident": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source_part", "target_part"],
+      "properties": {
+        "type": { "const": "coincident" },
+        "source_part": { "type": "string", "minLength": 1 },
+        "target_part": { "type": "string", "minLength": 1 },
+        "offset": {
+          "type": "number",
+          "default": 0,
+          "description": "Смещение вдоль оси (после concentric — вдоль axis_u; иначе вдоль вектора между центрами)."
+        },
+        "flip": {
+          "type": "boolean",
+          "default": false,
+          "description": "Поворот source на 180° вокруг оси ⟂ оси прижима (MVP)."
+        }
+      }
+    },
+    "assemblyMateDistance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source_part", "target_part", "value"],
+      "properties": {
+        "type": { "const": "distance" },
+        "source_part": { "type": "string", "minLength": 1 },
+        "target_part": { "type": "string", "minLength": 1 },
+        "value": {
+          "type": "number",
+          "description": "Расстояние между центрами вдоль axis_u (после concentric) или вдоль линии центров."
+        }
+      }
+    },
+    "assemblyMateSnapToOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "source_part", "target_part", "target_operation_index"],
+      "properties": {
+        "type": { "const": "snap_to_operation" },
+        "source_part": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Деталь, pose которой задаётся mate (часто fastener)."
+        },
+        "target_part": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Деталь с hole-операцией в geometry.parts[].operations[]."
+        },
+        "target_operation_index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Индекс операции hole в массиве operations цели (MVP: не pattern)."
+        },
+        "reverse_direction": {
+          "type": "boolean",
+          "default": false,
+          "description": "Развернуть ось вставки на 180° (вход с противоположной стороны отверстия)."
+        }
+      }
+    },
+    "partVisual": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "color": {
+          "type": "string",
+          "description": "Цвет #RRGGBB (переопределяет цвет пресета в STEP)."
+        },
+        "roughness": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Шероховатость поверхности 0..1 (для согласования с рендером)."
+        }
+      }
+    },
+    "geometryPart": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["part_id", "base_shape", "parameters", "operations"],
+      "properties": {
+        "part_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Уникальный id части внутри проекта; совпадает с ссылками в simulation."
+        },
+        "base_shape": {
+          "type": "string",
+          "enum": ["cylinder", "box", "sphere", "custom_profile", "extruded_profile", "revolved_profile", "fastener", "bearing", "gear"]
+        },
+        "parameters": {
+          "type": "object",
+          "description": "Параметры базового тела; точная форма задаётся условиями по base_shape (см. allOf ниже)."
+        },
+        "operations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/geometryOperation" },
+          "description": "Последовательность операций: hole, fillet, chamfer; v1.2+ — linear_pattern, circular_pattern (только дочернее hole)."
+        },
+        "material": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Опциональный пресет материала (steel, aluminum_6061, abs_plastic, rubber): плотность, трение, базовый цвет STEP."
+        },
+        "visual": {
+          "$ref": "#/$defs/partVisual",
+          "description": "Опциональное переопределение цвета/шероховатости поверх пресета."
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Опционально: смещение в сборке (мм); для v3.0 может вычисляться через assembly_mates."
+        },
+        "rotation": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Опционально: поворот в сборке (градусы, cq.Rot); для v3.0 может вычисляться через assembly_mates."
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "cylinder" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["radius", "height"],
+                "properties": {
+                  "radius": { "type": "number", "exclusiveMinimum": 0 },
+                  "height": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "box" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["length", "width", "height"],
+                "properties": {
+                  "length": { "type": "number", "exclusiveMinimum": 0 },
+                  "width": { "type": "number", "exclusiveMinimum": 0 },
+                  "height": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "sphere" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["radius"],
+                "properties": {
+                  "radius": { "type": "number", "exclusiveMinimum": 0 }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "extruded_profile" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["points", "height"],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "minItems": 3,
+                    "description": "Вершины замкнутого контура в XY (последняя точка может дублировать первую — будет снята на сервере).",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": { "type": "number" }
+                    }
+                  },
+                  "height": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Высота экструзии вдоль +Z (мм)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "revolved_profile" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["points", "angle"],
+                "properties": {
+                  "points": {
+                    "type": "array",
+                    "minItems": 3,
+                    "description": "Вершины замкнутого контура в плоскости XZ эскиза: [x,z], x — расстояние от оси вращения Y (>= 0); последняя точка может дублировать первую.",
+                    "items": {
+                      "type": "array",
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "items": { "type": "number" }
+                    }
+                  },
+                  "angle": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "maximum": 360,
+                    "description": "Угол вращения в градусах, (0, 360]."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "custom_profile" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "minProperties": 1,
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "fastener" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["type", "size"],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": ["bolt_hex", "nut_hex", "washer"]
+                  },
+                  "size": {
+                    "type": "string",
+                    "enum": ["M6", "M8", "M10", "M12"]
+                  },
+                  "length": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Длина стержня болта (мм); обязательна для bolt_hex."
+                  },
+                  "fit": {
+                    "type": "string",
+                    "enum": ["clearance", "tight"],
+                    "default": "clearance",
+                    "description": "Задел на будущее (пока не влияет на геометрию)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "bearing" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["series"],
+                "properties": {
+                  "series": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Серия подшипника из каталога (например 608zz, 6201)."
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "base_shape": { "const": "gear" } },
+            "required": ["base_shape"]
+          },
+          "then": {
+            "properties": {
+              "parameters": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["module", "teeth", "thickness", "bore_diameter"],
+                "properties": {
+                  "module": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Модуль зуба (мм)."
+                  },
+                  "teeth": {
+                    "type": "integer",
+                    "minimum": 4,
+                    "description": "Число зубьев."
+                  },
+                  "thickness": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Ширина венца (мм)."
+                  },
+                  "bore_diameter": {
+                    "type": "number",
+                    "exclusiveMinimum": 0,
+                    "description": "Диаметр посадочного отверстия под вал (мм)."
+                  },
+                  "high_lod": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "false — упрощённая геометрия (preview); true — процедурный spur high-LOD (приближение для прототипа и печати, не идеальная эвольвента)."
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "geometryOperation": {
+      "oneOf": [
+        { "$ref": "#/$defs/holeOperation" },
+        { "$ref": "#/$defs/filletOperation" },
+        { "$ref": "#/$defs/chamferOperation" },
+        { "$ref": "#/$defs/linearPatternOperation" },
+        { "$ref": "#/$defs/circularPatternOperation" }
+      ],
+      "discriminator": {
+        "propertyName": "type",
+        "mapping": {
+          "hole": "#/$defs/holeOperation",
+          "fillet": "#/$defs/filletOperation",
+          "chamfer": "#/$defs/chamferOperation",
+          "linear_pattern": "#/$defs/linearPatternOperation",
+          "circular_pattern": "#/$defs/circularPatternOperation"
+        }
+      }
+    },
+    "linearPatternOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "operation",
+        "count_x",
+        "count_y",
+        "spacing_x",
+        "spacing_y"
+      ],
+      "properties": {
+        "type": { "type": "string", "const": "linear_pattern" },
+        "operation": { "$ref": "#/$defs/holeOperation" },
+        "count_x": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Число копий по локальной оси X (от базовой position hole)."
+        },
+        "count_y": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Число копий по локальной оси Y."
+        },
+        "spacing_x": { "type": "number", "description": "Шаг по X (мм)." },
+        "spacing_y": { "type": "number", "description": "Шаг по Y (мм)." }
+      }
+    },
+    "circularPatternOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "center", "radius", "count", "angle", "operation"],
+      "properties": {
+        "type": { "type": "string", "const": "circular_pattern" },
+        "center": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" },
+          "description": "Центр окружности в мировых координатах."
+        },
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Радиус болтового круга (мм)."
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Число отверстий по дуге."
+        },
+        "angle": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Полный угол разворота в градусах (например 360 для полного круга)."
+        },
+        "operation": {
+          "$ref": "#/$defs/holeOperation",
+          "description": "Должно быть type=hole; position игнорируется."
+        }
+      }
+    },
+    "holeOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "diameter", "depth", "position", "direction"],
+      "properties": {
+        "type": { "type": "string", "const": "hole" },
+        "diameter": { "type": "number", "exclusiveMinimum": 0 },
+        "depth": {
+          "oneOf": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "string", "const": "through_all" }
+          ]
+        },
+        "position": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "direction": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        }
+      }
+    },
+    "filletOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "radius"],
+      "properties": {
+        "type": { "type": "string", "const": "fillet" },
+        "radius": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Радиус скругления рёбер (мм)."
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1,
+          "default": "ALL",
+          "description": "CadQuery edge selector: ALL — все рёбра; иначе строка селектора (|Z, >Z, <X, …)."
+        }
+      }
+    },
+    "chamferOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["type", "length"],
+      "properties": {
+        "type": { "type": "string", "const": "chamfer" },
+        "length": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Длина фаски на ребре (мм)."
+        },
+        "selector": {
+          "type": "string",
+          "minLength": 1,
+          "default": "ALL",
+          "description": "Как у fillet: ALL или CadQuery edge selector."
+        }
+      }
+    },
+    "simMaterial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mat_id", "density", "friction"],
+      "properties": {
+        "mat_id": { "type": "string", "minLength": 1 },
+        "density": { "type": "number", "exclusiveMinimum": 0 },
+        "friction": { "type": "number", "minimum": 0 }
+      }
+    },
+    "simNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["part_id", "mat_id"],
+      "properties": {
+        "part_id": { "type": "string", "minLength": 1 },
+        "mat_id": { "type": "string", "minLength": 1 },
+        "mass_override": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "simJoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "joint_id",
+        "type",
+        "parent_part",
+        "child_part",
+        "anchor_point",
+        "axis"
+      ],
+      "properties": {
+        "joint_id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["hinge", "slider", "fixed", "ball"]
+        },
+        "parent_part": { "type": "string", "minLength": 1 },
+        "child_part": { "type": "string", "minLength": 1 },
+        "anchor_point": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "axis": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "type": "number" }
+        },
+        "limits": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": { "type": "number" }
+        }
+      }
+    }
+  }
+}
