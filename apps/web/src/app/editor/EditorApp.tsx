@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { type ChatMessage, CopilotSidebar } from "@/components/CopilotSidebar";
 import { CodeViewerModal } from "@/components/CodeViewerModal";
 import { DemoOnboardingOverlay } from "@/components/DemoOnboardingOverlay";
+import { GearboxGeneratorModal } from "@/components/GearboxGeneratorModal";
 import { LoginModal } from "@/components/LoginModal";
 import { ParametricPanel } from "@/components/ParametricPanel";
 import { ProFeedbackModal } from "@/components/ProFeedbackModal";
@@ -38,6 +39,7 @@ import {
   getLiveDemoJsonPath,
   isLiveDemoSlug,
 } from "@/lib/demo";
+import { buildGearboxBlueprintJson } from "@/lib/gearboxPreset";
 import { track } from "@/lib/track";
 
 /** Минимальная проверка «похоже на Blueprint v1» для прикрепления к промпту. */
@@ -115,6 +117,7 @@ function EditorAppInner() {
   const [publicBusy, setPublicBusy] = useState(false);
   const [forkBusy, setForkBusy] = useState(false);
   const [proFeedbackOpen, setProFeedbackOpen] = useState(false);
+  const [gearboxModalOpen, setGearboxModalOpen] = useState(false);
 
   const { user, logout } = useAuth();
 
@@ -275,6 +278,26 @@ function EditorAppInner() {
       .then((r) => r.text())
       .then((t) => reset(t))
       .catch(() => reset("{}"));
+  }, [reset]);
+
+  const loadDemoGearboxV43 = useCallback(() => {
+    fetch("/demo-gearbox-v4.3.json")
+      .then((r) => r.text())
+      .then((t) => reset(t))
+      .catch(() => reset("{}"));
+  }, [reset]);
+
+  const loadGearboxPreset31 = useCallback(() => {
+    reset(
+      buildGearboxBlueprintJson({
+        ratio: 3,
+        module: 2,
+        thickness: 10,
+        bore: 8,
+        highLod: false,
+        projectId: "gearbox_3_1_preset",
+      }),
+    );
   }, [reset]);
 
   useEffect(() => {
@@ -665,6 +688,11 @@ function EditorAppInner() {
       <DemoOnboardingOverlay
         visible={isLiveDemo && projectLoadStatus === "ready"}
       />
+      <GearboxGeneratorModal
+        open={gearboxModalOpen}
+        onClose={() => setGearboxModalOpen(false)}
+        onApplyJson={(json) => reset(json)}
+      />
       <CodeViewerModal
         open={codeModalOpen}
         onClose={() => setCodeModalOpen(false)}
@@ -725,6 +753,27 @@ function EditorAppInner() {
                 className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200 hover:bg-neutral-800"
               >
                 Редуктор (mates v3)
+              </button>
+              <button
+                type="button"
+                onClick={() => loadDemoGearboxV43()}
+                className="rounded border border-emerald-900/50 bg-emerald-950/40 px-2 py-1 text-[11px] text-emerald-100 hover:bg-emerald-900/50"
+              >
+                Редуктор (генератор v4.3)
+              </button>
+              <button
+                type="button"
+                onClick={() => loadGearboxPreset31()}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200 hover:bg-neutral-800"
+              >
+                ⚙️ Редуктор 3:1 (пресет)
+              </button>
+              <button
+                type="button"
+                onClick={() => setGearboxModalOpen(true)}
+                className="rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-[11px] text-neutral-200 hover:bg-neutral-800"
+              >
+                Редуктор…
               </button>
             </div>
           </div>

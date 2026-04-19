@@ -12,6 +12,8 @@ import {
   LIVE_DEMO_PROJECT_SLUG,
   MATES_V3_LIVE_DEMO_SLUG,
 } from "@/lib/demo";
+
+const GEARBOX_V43_DEMO_SLUG = "demo-gearbox-v4.3";
 import { track } from "@/lib/track";
 
 export function LandingPage() {
@@ -49,6 +51,7 @@ export function LandingPage() {
 
   const demoHref = `/editor?project=${LIVE_DEMO_PROJECT_SLUG}`;
   const demoMatesV3Href = `/editor?project=${MATES_V3_LIVE_DEMO_SLUG}`;
+  const demoGearboxHref = `/editor?project=${GEARBOX_V43_DEMO_SLUG}`;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100">
@@ -355,7 +358,23 @@ export function LandingPage() {
               <code className="text-neutral-400">coincident</code> — без ручного
               подбора координат крепежа.
             </p>
-            <p className="mt-3 text-xs text-neutral-600">
+            <p className="mt-3 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-neutral-600">
+              <Link
+                href={demoGearboxHref}
+                onClick={() => {
+                  track("live_demo_opened", {
+                    surface: "landing_demo_section_gearbox_v43",
+                  });
+                  try {
+                    sessionStorage.setItem("jti_live_demo_from_landing", "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+                className="text-emerald-400/90 underline decoration-emerald-700/50 underline-offset-2 hover:text-emerald-300"
+              >
+                Редуктор (генератор v4.3)
+              </Link>
               <Link
                 href={demoMatesV3Href}
                 onClick={() => {
@@ -370,7 +389,7 @@ export function LandingPage() {
                 }}
                 className="text-sky-400/90 underline decoration-sky-600/50 underline-offset-2 hover:text-sky-300"
               >
-                Классическое демо: редуктор (snap mates v3)
+                Классика: редуктор (snap mates v3)
               </Link>
             </p>
           </div>

@@ -86,7 +86,7 @@ def build_bom_from_blueprint(
         elif part.get("base_shape") == "gear":
             item_type = "manufactured"
             fp = part.get("parameters") or {}
-            catalog_label = gear_catalog_label(fp)
+            catalog_label = gear_catalog_label(fp, part_id=pid)
             if isinstance(mat_key, str) and mat_key.strip():
                 preset = MATERIAL_PRESETS.get(mat_key.strip())
                 if preset is not None:

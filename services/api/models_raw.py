@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 try:
     from models import (
@@ -326,7 +326,24 @@ RawAssemblyMate = Annotated[
 class RawGeometrySection(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    parts: Annotated[list[RawGeometryPart], Field(min_length=1)]
+    parts: Annotated[list[RawGeometryPart], Field(min_length=0)]
+
+
+GearboxCenterDistance = Union[Literal["auto"], NumExpr]
+
+
+class RawGeneratorGearbox(BaseModel):
+    """Высокоуровневый одноступенчатый редуктор (2 шестерни, 2 вала, mates)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["gearbox"]
+    ratio: NumExpr
+    module: NumExpr
+    thickness: NumExpr
+    bore_diameter: NumExpr
+    center_distance: GearboxCenterDistance = "auto"
+    high_lod: bool = False
 
 
 class RawBlueprintPayload(BaseModel):
@@ -346,6 +363,20 @@ class RawBlueprintPayload(BaseModel):
         default=None,
         description="Сборочные привязки (snap + v3.5 constraints); после резолва — числовой ResolvedBlueprintPayload.",
     )
+    generators: list[RawGeneratorGearbox] | None = Field(
+        default=None,
+        description="Высокоуровневые генераторы (v4.3); expand до resolve.",
+    )
+
+    @model_validator(mode="after")
+    def _parts_or_generators(self) -> RawBlueprintPayload:
+        if self.generators and len(self.generators) > 0:
+            return self
+        if len(self.geometry.parts) < 1:
+            raise ValueError(
+                "geometry.parts: укажите хотя бы одну деталь или непустой generators (gearbox)"
+            )
+        return self
 
 
 class JobCreateWithPrompt(BaseModel):

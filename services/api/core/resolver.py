@@ -169,17 +169,27 @@ def finalize_resolved_blueprint(
     debug_constraints: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any] | None]:
     """
-    Полный конвейер: ``resolve_blueprint_variables`` → ``resolve_assembly_mates``.
+    Полный конвейер: ``expand_blueprint_generators`` → ``resolve_blueprint_variables``
+    → ``resolve_assembly_mates``.
 
     Возвращает ``(blueprint, resolved_transforms)``; второй элемент — только при
     ``debug_constraints=True`` (иначе ``None``). Используется воркером и API до
     ``ResolvedBlueprintPayload.model_validate`` (первый элемент).
     """
+    from .gearbox_expand import GearboxExpansionError, expand_blueprint_generators
     from .mate_solver import resolve_assembly_mates
 
-    resolved = resolve_blueprint_variables(copy.deepcopy(raw))
+    bp = copy.deepcopy(raw)
+    mw = list(mate_warnings or [])
+    try:
+        bp, gen_w = expand_blueprint_generators(bp)
+        mw.extend(gen_w)
+    except GearboxExpansionError as e:
+        raise BlueprintResolutionError(str(e)) from e
+
+    resolved = resolve_blueprint_variables(bp)
     return resolve_assembly_mates(
-        resolved, warnings=mate_warnings, debug_constraints=debug_constraints
+        resolved, warnings=mw, debug_constraints=debug_constraints
     )
 
 

@@ -1,0 +1,41 @@
+{
+  "metadata": {
+    "project_id": "demo_gearbox_v43",
+    "schema_version": "4.3"
+  },
+  "global_variables": {
+    "gearbox_ratio": 3.0,
+    "gearbox_module": 2.0,
+    "gear_thickness": 10.0,
+    "gear_bore": 8.0
+  },
+  "global_settings": {
+    "units": "mm",
+    "up_axis": "Z"
+  },
+  "geometry": {
+    "parts": []
+  },
+  "simulation": {
+    "materials": [
+      {
+        "mat_id": "steel",
+        "density": 7850,
+        "friction": 0.42
+      }
+    ],
+    "nodes": [],
+    "joints": []
+  },
+  "generators": [
+    {
+      "type": "gearbox",
+      "ratio": "$gearbox_ratio",
+      "module": "$gearbox_module",
+      "thickness": "$gear_thickness",
+      "bore_diameter": "$gear_bore",
+      "center_distance": "auto",
+      "high_lod": false
+    }
+  ]
+}

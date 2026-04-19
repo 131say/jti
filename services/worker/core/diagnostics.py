@@ -506,6 +506,45 @@ def _build_solids_map(
     return out
 
 
+def _gearbox_meta_checks(blueprint: dict[str, Any]) -> list[dict[str, Any]]:
+    """INFO-статусы после expand generators.gearbox (передаточное число, кинематика)."""
+    meta = (blueprint.get("metadata") or {}).get("gearbox_expansion")
+    if not isinstance(meta, dict):
+        return []
+    req = meta.get("requested_ratio")
+    act = meta.get("actual_ratio")
+    z1 = meta.get("z1")
+    z2 = meta.get("z2")
+    try:
+        req_f = float(req) if req is not None else 0.0
+        act_f = float(act) if act is not None else 0.0
+    except (TypeError, ValueError):
+        return []
+    msg = (
+        f"Requested ratio: {req_f:g}, actual: {act_f:.4g} "
+        f"(z1={z1!s}, z2={z2!s})"
+    )
+    checks: list[dict[str, Any]] = [
+        {
+            "type": "gearbox_info",
+            "severity": "info",
+            "message": msg,
+            "part_ids": [],
+            "metrics": None,
+        },
+        {
+            "type": "kinematics",
+            "severity": "info",
+            "message": (
+                "Gears rotate in opposite directions (correct for external spur mesh)."
+            ),
+            "part_ids": [],
+            "metrics": None,
+        },
+    ]
+    return checks
+
+
 def run_engineering_diagnostics(
     blueprint: dict[str, Any],
     warnings: list[str] | None = None,
@@ -525,6 +564,8 @@ def run_engineering_diagnostics(
 
     # 1b) Зубчатые пары (модуль / межосевое / передаточное число)
     checks.extend(check_gear_meshes(blueprint, warnings))
+
+    checks.extend(_gearbox_meta_checks(blueprint))
 
     # 2) Thin features
     checks.extend(_thin_feature_heuristic(solids_by_id))

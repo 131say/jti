@@ -112,11 +112,20 @@ def build_gear_solid(parameters: dict[str, Any]) -> cq.Shape:
     return make_gear_solid(parameters)
 
 
-def gear_catalog_label(parameters: dict[str, Any]) -> str:
+def gear_catalog_label(parameters: dict[str, Any], *, part_id: str = "") -> str:
     m = float(parameters.get("module") or 0)
-    z = int(parameters.get("teeth") or 0)
+    z_raw = parameters.get("teeth") or 0
+    try:
+        z = int(round(float(z_raw)))
+    except (TypeError, ValueError):
+        z = 0
     if parameters.get("high_lod"):
         lod = "процедурный профиль (прототип/печать)"
     else:
         lod = "упрощённая (preview)"
-    return f"Шестерня m={m:g}, z={z} ({lod})"
+    base = f"Шестерня m={m:g}, z={z} ({lod})"
+    if part_id == "gear_input":
+        return f"Gear (Input) — M{m:g} z={z}"
+    if part_id == "gear_output":
+        return f"Gear (Output) — M{m:g} z={z}"
+    return base

@@ -4,6 +4,7 @@
 
 export const LIVE_DEMO_SLUGS = [
   "demo-constraints-v3.5",
+  "demo-gearbox-v4.3",
   "demo-mates-v3",
 ] as const;
 
@@ -23,6 +24,10 @@ const LIVE_DEMO_CONFIG: Record<
     jsonPath: "/demo-constraints-v3.5.json",
     displayName: "Сборка (Constraints v3.5)",
   },
+  "demo-gearbox-v4.3": {
+    jsonPath: "/demo-gearbox-v4.3.json",
+    displayName: "Редуктор (генератор v4.3)",
+  },
   "demo-mates-v3": {
     jsonPath: "/demo-mates-v3.json",
     displayName: "Редуктор (mates v3)",
@@ -34,6 +39,7 @@ export function isLiveDemoSlug(
 ): id is LiveDemoSlug {
   return (
     id === "demo-constraints-v3.5" ||
+    id === "demo-gearbox-v4.3" ||
     id === "demo-mates-v3"
   );
 }

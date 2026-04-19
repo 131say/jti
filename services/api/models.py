@@ -1,4 +1,4 @@
-"""Pydantic v2 модели Blueprint v1.0–v3.5 (v3.5: constraint assembly_mates)."""
+"""Pydantic v2 модели Blueprint v1.0–v4.3 (v4.3: generators / gearbox MVP)."""
 
 from __future__ import annotations
 
@@ -14,8 +14,12 @@ class BlueprintMetadata(BaseModel):
 
     project_id: str = Field(min_length=1)
     schema_version: Literal[
-        "1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2", "3.5"
+        "1.0", "1.1", "1.2", "1.3", "1.4", "2.0", "2.1", "3.0", "3.2", "3.5", "4.3"
     ]
+    gearbox_expansion: dict[str, Any] | None = Field(
+        default=None,
+        description="Сводка expand gearbox (z1/z2, фактическое i); заполняет воркер.",
+    )
 
 
 class GlobalSettings(BaseModel):
