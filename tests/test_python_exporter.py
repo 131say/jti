@@ -73,7 +73,7 @@ class TestPythonExporter(unittest.TestCase):
         self.assertIn("b1 = make_bearing_ring", src)
         self.assertIn("g1 = make_gear_preview", src)
 
-    def test_gear_high_lod_not_added(self) -> None:
+    def test_gear_high_lod_emits_procedural(self) -> None:
         payload = {
             "geometry": {
                 "parts": [
@@ -93,9 +93,9 @@ class TestPythonExporter(unittest.TestCase):
             }
         }
         src = generate_python_script(payload)
-        self.assertIn("high_lod=true", src)
-        self.assertIn("g_hi = None", src)
-        self.assertIn("was not added", src)
+        self.assertIn("def make_gear_procedural", src)
+        self.assertIn("g_hi = make_gear_procedural", src)
+        self.assertNotIn("g_hi = None", src)
 
 
 if __name__ == "__main__":

@@ -411,7 +411,7 @@
                   "high_lod": {
                     "type": "boolean",
                     "default": false,
-                    "description": "false — упрощённая геометрия (preview); true — задел под эвольвенту (пока не поддерживается)."
+                    "description": "false — упрощённая геометрия (preview); true — процедурный spur high-LOD (приближение для прототипа и печати, не идеальная эвольвента)."
                   }
                 }
               }

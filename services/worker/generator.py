@@ -22,7 +22,7 @@ from worker.core.geometry import (
 )
 from worker.core.bearings import build_bearing_solid
 from worker.core.fasteners import assembly_pose, build_fastener_solid
-from worker.core.gears import build_gear_solid
+from worker.core.gears import HIGH_LOD_GEAR_JOB_WARNING, build_gear_solid
 from worker.core.primitives import (
     make_box,
     make_cylinder,
@@ -337,6 +337,14 @@ def build_assembly_from_blueprint(
     parts = (payload.get("geometry") or {}).get("parts") or []
     if not parts:
         raise BlueprintGenerationError("geometry.parts должен содержать хотя бы одну деталь")
+
+    if warnings is not None and any(
+        p.get("base_shape") == "gear"
+        and isinstance(p.get("parameters"), dict)
+        and p["parameters"].get("high_lod")
+        for p in parts
+    ):
+        warnings.append(HIGH_LOD_GEAR_JOB_WARNING)
 
     root = cq.Assembly(None, name="AI_Forge_Project")
     for part in parts:

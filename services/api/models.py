@@ -276,7 +276,7 @@ class GeometryPartBearing(GeometryPartMaterialFields):
 
 
 class GearParams(BaseModel):
-    """Шестерня: preview (high_lod=false) — многоугольник по Da; high_lod=true — задел на эвольвенту."""
+    """Шестерня: preview (high_lod=false) — многоугольник по Da; high_lod=true — процедурный трапециевидный зуб (прототип/печать)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -286,7 +286,7 @@ class GearParams(BaseModel):
     bore_diameter: float = Field(gt=0, description="Посадочное отверстие под вал (мм).")
     high_lod: bool = Field(
         default=False,
-        description="false: упрощённая геометрия (быстро); true: будущий эвольвентный режим.",
+        description="false: упрощённая геометрия (быстро); true: процедурный spur high-LOD (не идеальная эвольвента).",
     )
 
 

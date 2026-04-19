@@ -35,7 +35,7 @@ export const BASE_SHAPE_OPTIONS: { value: string; label: string }[] = [
   { value: "revolved_profile", label: "revolved_profile — ступенчатый вал (вращение)" },
   { value: "fastener", label: "fastener — болт / гайка / шайба" },
   { value: "bearing", label: "bearing — подшипник (каталог, BOM purchased)" },
-  { value: "gear", label: "gear — шестерня preview (high_lod=false)" },
+  { value: "gear", label: "gear — прямозубая (preview / high_lod)" },
 ];
 
 type ParamScalar = number | string | boolean;
@@ -318,7 +318,11 @@ export function ParametricPanel({
         { kind: "number", key: "teeth", label: "teeth (z)", step: "1" },
         { kind: "number", key: "thickness", label: "thickness (мм)" },
         { kind: "number", key: "bore_diameter", label: "bore_diameter (мм)" },
-        { kind: "boolean", key: "high_lod", label: "high_lod (эвольвента — не реализовано)" },
+        {
+          kind: "boolean",
+          key: "high_lod",
+          label: "high_lod (процедурные зубья для печати/экспорта)",
+        },
       ];
     }
     return [];
@@ -341,8 +345,9 @@ export function ParametricPanel({
         Числа в мм (как в JSON). Материал — пресет для цвета STEP и физики MuJoCo.
         Формы <strong className="text-neutral-400">bearing</strong> и{" "}
         <strong className="text-neutral-400">gear</strong> (схема v3.2) — на
-        виду: подшипник из каталога (BOM purchased), шестерня preview (
-        <code className="text-neutral-400">high_lod=false</code> по умолчанию).
+        виду: подшипник из каталога (BOM purchased), шестерня: preview или{" "}
+        <code className="text-neutral-400">high_lod=true</code> (процедурный
+        венец для печати).
         Обновление отправляет Blueprint в воркер без LLM.
         {baselineJson ? (
           <span className="text-amber-600/90">

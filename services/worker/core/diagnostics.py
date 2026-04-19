@@ -28,10 +28,24 @@ CheckSeverity = str  # "pass" | "warning" | "fail"
 CheckType = str
 
 
+def _base_shape_by_part_id(blueprint: dict[str, Any]) -> dict[str, str]:
+    out: dict[str, str] = {}
+    for p in (blueprint.get("geometry") or {}).get("parts") or []:
+        pid = p.get("part_id")
+        if pid is None:
+            continue
+        bs = p.get("base_shape")
+        if isinstance(bs, str):
+            out[str(pid)] = bs
+    return out
+
+
 def _pairwise_interference(
     solids_by_id: dict[str, cq.Shape],
+    blueprint: dict[str, Any],
 ) -> list[dict[str, Any]]:
     """Проверка всех пар деталей на пересечение (объём > epsilon)."""
+    shapes = _base_shape_by_part_id(blueprint)
     out: list[dict[str, Any]] = []
     ids = sorted(solids_by_id.keys())
     for i, a_id in enumerate(ids):
@@ -47,13 +61,22 @@ def _pairwise_interference(
                 )
                 continue
             if vol > INTERFERENCE_EPS_MM3:
+                both_gear = (
+                    shapes.get(a_id) == "gear" and shapes.get(b_id) == "gear"
+                )
+                severity: CheckSeverity = "warning" if both_gear else "fail"
+                msg_extra = (
+                    " (пара шестерён: процедурный профиль даёт микропересечения — WARNING до meshing-проверок)."
+                    if both_gear
+                    else ""
+                )
                 out.append(
                     {
                         "type": "interference",
-                        "severity": "fail",
+                        "severity": severity,
                         "message": (
                             f"Детали '{a_id}' и '{b_id}' пересекаются "
-                            f"(эвристика объёма пересечения)."
+                            f"(эвристика объёма пересечения).{msg_extra}"
                         ),
                         "part_ids": [a_id, b_id],
                         "metrics": {"interference_volume_mm3": round(vol, 6)},
@@ -233,7 +256,7 @@ def run_engineering_diagnostics(
         return {"status": "pass", "checks": []}
 
     # 1) Interference (высший приоритет)
-    checks.extend(_pairwise_interference(solids_by_id))
+    checks.extend(_pairwise_interference(solids_by_id, blueprint))
 
     # 2) Thin features
     checks.extend(_thin_feature_heuristic(solids_by_id))

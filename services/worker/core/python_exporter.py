@@ -111,6 +111,39 @@ def make_gear_preview(module: float, teeth: int, thickness: float, bore_d: float
     r_b = bore_d / 2.0
     rv = cq.Workplane("XY").polygon(teeth, r_outer).extrude(thickness)
     return rv.faces("<Z").workplane().circle(r_b).cutThruAll().val()
+
+
+def make_gear_procedural(module: float, teeth: int, thickness: float, bore_d: float) -> cq.Shape:
+    """High LOD: корень m*(z-2.5), трапеция зуба, z копий, bore (синхронно с воркером)."""
+    if teeth < 4:
+        raise ValueError("gear teeth must be >= 4")
+    z = int(teeth)
+    m = float(module)
+    h = float(thickness)
+    d_outer = m * (z + 2)
+    d_root = m * (z - 2.5)
+    r_outer = d_outer / 2.0
+    r_root = max(d_root / 2.0, 1e-6)
+    r_b = bore_d / 2.0
+    if r_b >= r_outer - 1e-3:
+        raise ValueError("bore too large for gear")
+    if r_root <= r_b + 1e-3:
+        raise ValueError("root diameter too small for bore")
+    tr = 0.52 * math.pi / z
+    tt = 0.38 * math.pi / z
+    pts = [
+        (r_root * math.cos(-tr), r_root * math.sin(-tr)),
+        (r_outer * math.cos(-tt), r_outer * math.sin(-tt)),
+        (r_outer * math.cos(tt), r_outer * math.sin(tt)),
+        (r_root * math.cos(tr), r_root * math.sin(tr)),
+    ]
+    tooth = cq.Workplane("XY").polyline(pts).close().extrude(h).val()
+    root_cyl = cq.Workplane("XY").circle(r_root).extrude(h).val()
+    merged = root_cyl
+    for i in range(z):
+        ang = i * 360.0 / z
+        merged = merged.fuse(tooth.rotate((0.0, 0.0, 0.0), (0.0, 0.0, 1.0), ang))
+    return cq.Workplane("XY").add(merged).faces("<Z").workplane().circle(r_b).cutThruAll().val()
 '''
 
 
@@ -266,12 +299,6 @@ def _emit_part_body(
 
     if kind == "gear":
         p = part.get("parameters") or {}
-        if bool(p.get("high_lod", False)):
-            lines.append(
-                f"{indent}# WARNING: gear high_lod=true (involute) not implemented — part omitted"
-            )
-            lines.append(f"{indent}{var} = None")
-            return lines, False
         try:
             m = float(p["module"])
             z = int(p["teeth"])
@@ -281,9 +308,14 @@ def _emit_part_body(
             lines.append(f"{indent}# WARNING: gear parameters invalid — part omitted")
             lines.append(f"{indent}{var} = None")
             return lines, False
-        lines.append(
-            f"{indent}{var} = make_gear_preview({_py_num(m)}, {z}, {_py_num(th)}, {_py_num(bd)})"
-        )
+        if bool(p.get("high_lod", False)):
+            lines.append(
+                f"{indent}{var} = make_gear_procedural({_py_num(m)}, {z}, {_py_num(th)}, {_py_num(bd)})"
+            )
+        else:
+            lines.append(
+                f"{indent}{var} = make_gear_preview({_py_num(m)}, {z}, {_py_num(th)}, {_py_num(bd)})"
+            )
         return lines, True
 
     if kind == "cylinder":
