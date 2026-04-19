@@ -176,7 +176,10 @@ def finalize_resolved_blueprint(
     ``debug_constraints=True`` (иначе ``None``). Используется воркером и API до
     ``ResolvedBlueprintPayload.model_validate`` (первый элемент).
     """
-    from .gearbox_expand import GearboxExpansionError, expand_blueprint_generators
+    from worker.core.generators.gearbox import (
+        GearboxExpansionError,
+        expand_blueprint_generators,
+    )
     from .mate_solver import resolve_assembly_mates
 
     bp = copy.deepcopy(raw)

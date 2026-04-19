@@ -11,7 +11,7 @@ _SERVICES = _ROOT / "services"
 if str(_SERVICES) not in sys.path:
     sys.path.insert(0, str(_SERVICES))
 
-from api.core.gearbox_expand import (  # noqa: E402
+from worker.core.generators.gearbox import (  # noqa: E402
     GearboxExpansionError,
     expand_blueprint_generators,
 )

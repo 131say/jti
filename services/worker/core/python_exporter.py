@@ -458,6 +458,22 @@ def generate_python_script(payload: dict[str, Any]) -> str:
     lines.append("Requires: cadquery")
     lines.append('"""')
     lines.append("")
+    gexp = (payload.get("metadata") or {}).get("gearbox_expansion")
+    if isinstance(gexp, dict) and gexp:
+        req = gexp.get("requested_ratio")
+        act = gexp.get("actual_ratio")
+        z1 = gexp.get("z1")
+        z2 = gexp.get("z2")
+        lines.append(
+            f"# --- Gearbox (v4.3 expanded): i_req={req!r}, i_act={act!r}, z1={z1!r}, z2={z2!r} ---"
+        )
+        lines.append(
+            "# Позиции/повороты ниже — уже после assembly_mates в воркере (resolved blueprint)."
+        )
+        lines.append(
+            "# Скрипт строит тела и кладёт их в Assembly с теми же pose, что и CAD-сборка."
+        )
+        lines.append("")
     lines.append("from __future__ import annotations")
     lines.append("")
     lines.append("import math")
