@@ -2,6 +2,23 @@
 
 Монорепозиторий: Next.js (веб), FastAPI (API), Arq + Python (воркер), Docker (Redis, MinIO).
 
+## Текущая версия
+
+Актуальный production-milestone по контракту Blueprint (генератор редуктора **v4.3**, constraints **v3.5** и др.):
+
+- **Git-тег:** [`v4.3-auto-gearbox`](https://github.com/131say/jti/releases/tag/v4.3-auto-gearbox)
+
+## Контракты данных (JSON Schemas)
+
+Машиночитаемые схемы лежат в каталоге [`schemas/`](schemas/). Для онбординга и проверки JSON в CI/редакторах ориентируйтесь на последний контракт редуктора и генераторов:
+
+| Версия | Файл | Описание |
+|--------|------|----------|
+| **4.3** | [`schemas/blueprint-v4.3.schema.json`](https://github.com/131say/jti/blob/main/schemas/blueprint-v4.3.schema.json) | `generators.gearbox`, `schema_version` **4.3**, пустой `geometry.parts` при генераторе |
+| 3.5 | [`schemas/blueprint-v3.5.schema.json`](https://github.com/131say/jti/blob/main/schemas/blueprint-v3.5.schema.json) | Constraint mates: `concentric`, `coincident`, `distance` |
+
+Полный список схем — в [`schemas/`](schemas/). Валидация в рантайме дублируется моделями Pydantic в `services/api/models*.py`.
+
 ## Быстрый старт
 
 ### 1. Переменные окружения
